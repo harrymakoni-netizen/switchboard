@@ -8,5 +8,5 @@
 - M5: PASS — production build and Playwright browser flow: live rows, transcript disclosure, mock booking approval, funds held; desktop and 375px screenshots inspected.
 - M6: PASS — six Playwright scenarios pass: live quote board, full loop CLOSED with exactly one capture/payout and a receipt, cancellation with void, not-done ISSUE with hold kept, and anonymous-session isolation. Latest full verification: lint, typecheck, production build, 63 Vitest tests, and six Playwright scenarios pass. Latest happy path measured at 6.2 seconds.
 - M7: not started; requires configured sandbox PayPal, Twilio numbers, speech provider, Anthropic and Kernel credentials and a public webhook URL for manual acceptance.
-- M8: gated on M7; no hosted build or public repository exists yet.
+- M8: gated on M7; public GitHub source and a Vercel interface-only deployment now exist; full hosted booking acceptance is still pending backend provisioning.
 - M9: intentionally excluded.

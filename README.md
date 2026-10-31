@@ -2,7 +2,7 @@
 
 A buyer’s assistant for arranging a home repair: one brief, parallel quote calls, a live comparison board, and two explicit payment approvals.
 
-**Current build: M0–M6 offline mock demo.** No real phone calls or money transfers occur. M7 real-service integrations and M8 hosting have not passed; the current Vercel web deployment is interface-only until a hosted database and worker are connected. GitHub publication is pending repository access; there is no real-service judge login yet. See [MILESTONES.md](MILESTONES.md).
+**Current build: M0–M6 offline mock demo.** No real phone calls or money transfers occur. M7 real-service integrations and M8 hosting have not passed; the current Vercel web deployment is interface-only until a hosted database and worker are connected. Source: https://github.com/harrymakoni-netizen/switchboard. There is no real-service judge login yet. See [MILESTONES.md](MILESTONES.md).
 
 ## Run locally
 
@@ -73,7 +73,7 @@ Remaining implementation and verification: Twilio outbound calls, signature-vali
 
 Configure the variables listed in `.env.example` through environment secrets. For PayPal, create a sandbox business account and REST app with Payouts, a sandbox personal buyer, and personal recipient accounts for the two accepting bots. Set `TENDAI_PAYOUT_EMAIL` and `QUICKFIX_PAYOUT_EMAIL` to those sandbox recipient emails. Demo `example.com` addresses must be replaced before real sandbox runs.
 
-The scope gates deployment on M7. Render provisioning, `render.yaml`, hosted judge acceptance, the public repository, and the final Postman collection remain M8 work. The Twilio worker must be a Render **web service** for public HTTPS/WSS callbacks.
+The scope gates deployment on M7. Render provisioning, `render.yaml`, hosted judge acceptance, the final Postman collection, and full hosted acceptance remain M8 work. The Twilio worker must be a Render **web service** for public HTTPS/WSS callbacks.
 
 ## Design
 
@@ -88,3 +88,5 @@ Root directory: `apps/web`. Install: `cd ../.. && pnpm install --frozen-lockfile
 The hosted web deployment has `HOSTED_UI_ONLY=1`: it visibly disables booking and returns HTTP 503 from the API. The database and pg-boss worker must be hosted and configured before removing that flag. Do not set DATABASE_URL or PUBLIC_WORKER_URL to localhost on Vercel. The current long-running worker cannot be assumed to keep running between Vercel Function requests; use a suitable persistent worker host or adapt its queue execution before enabling online booking.
 
 Keep `PAYPAL_ENV=sandbox`, `DEMO_MODE=1`, and all MOCK flags at `1`. Configure `DATABASE_URL`, `PUBLIC_WORKER_URL`, `APP_URL`, and a newly generated `SESSION_SECRET` in both server environments. Run migrations against the dedicated hosted database before enabling requests.
+
+Repository source is pushed to `main`. The initial project was deployed from inline source; repository-based deployments are supported and verified separately. Automatic deployment on every push still requires connecting this repository under the existing Vercel project’s Settings → Git.
