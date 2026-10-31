@@ -2,7 +2,7 @@
 
 A buyer’s assistant for arranging a home repair: one brief, parallel quote calls, a live comparison board, and two explicit payment approvals.
 
-**Current build: M0–M6 offline mock demo.** No real phone calls or money transfers occur. M7 real-service integrations and M8 hosting have not passed; there is no hosted URL, public GitHub repo, or judge login yet. See [MILESTONES.md](MILESTONES.md).
+**Current build: M0–M6 offline mock demo.** No real phone calls or money transfers occur. M7 real-service integrations and M8 hosting have not passed; the current Vercel web deployment is interface-only until a hosted database and worker are connected. GitHub publication is pending repository access; there is no real-service judge login yet. See [MILESTONES.md](MILESTONES.md).
 
 ## Run locally
 
@@ -78,3 +78,13 @@ The scope gates deployment on M7. Render provisioning, `render.yaml`, hosted jud
 ## Design
 
 Public Sans is self-hosted under `apps/web/public/fonts` with its OFL license. The interface uses a cobalt shell, cool light workspace, restrained green state feedback, and a data-first board. Screenshots are under `docs/`. Design preferences are documented in [DESIGN.md](DESIGN.md).
+
+## Vercel deployment
+
+Project: `switchboard`, team: `hjm-technologies`. Production alias: https://switchboard-hjm-technologies.vercel.app. The project keeps the team’s default Vercel Authentication protection.
+
+Root directory: `apps/web`. Install: `cd ../.. && pnpm install --frozen-lockfile`. Build: `pnpm build`. Node: 24.x for the initial deployment. The monorepo source outside the root directory must be included.
+
+The hosted web deployment has `HOSTED_UI_ONLY=1`: it visibly disables booking and returns HTTP 503 from the API. The database and pg-boss worker must be hosted and configured before removing that flag. Do not set DATABASE_URL or PUBLIC_WORKER_URL to localhost on Vercel. The current long-running worker cannot be assumed to keep running between Vercel Function requests; use a suitable persistent worker host or adapt its queue execution before enabling online booking.
+
+Keep `PAYPAL_ENV=sandbox`, `DEMO_MODE=1`, and all MOCK flags at `1`. Configure `DATABASE_URL`, `PUBLIC_WORKER_URL`, `APP_URL`, and a newly generated `SESSION_SECRET` in both server environments. Run migrations against the dedicated hosted database before enabling requests.
