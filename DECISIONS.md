@@ -17,3 +17,6 @@
 - Real telephony is explicitly refused in this M6 build. M7 is not represented as implemented or verified; deployment remains gated on its manual acceptance.
 
 - All PayPal order, authorization, capture, void, payout, and reauthorization execution lives in `packages/engine/src/money.ts`. The worker injects adapters and schedules engine methods; LLM agents cannot execute them.
+
+- The user explicitly changed the hosting target to Vercel and requested GitHub publication; this supersedes the original Render/deployment milestone gate for publishing the current mock build.
+- The Vercel web deployment uses `HOSTED_UI_ONLY=1` until hosted Postgres and the background worker are connected. This visibly disables booking and returns HTTP 503 from booking APIs instead of pretending that local services are accessible from Vercel. Local mock mode remains fully functional.

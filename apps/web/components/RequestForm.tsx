@@ -2,7 +2,11 @@
 import { useState, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
 const example = "Fix Mum’s geyser in Avondale tomorrow, under $120";
-export function RequestForm() {
+export function RequestForm({
+  bookingAvailable = true,
+}: {
+  bookingAvailable?: boolean;
+}) {
   const [request, setRequest] = useState("");
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
@@ -36,6 +40,12 @@ export function RequestForm() {
   return (
     <>
       <form className="request-form" onSubmit={submit}>
+        {!bookingAvailable && (
+          <p className="empty-note" role="status">
+            Preview deployment · Online booking is not available here yet. No
+            requests or payments will be submitted.
+          </p>
+        )}
         <label htmlFor="request">What needs taking care of?</label>
         <textarea
           id="request"
@@ -52,7 +62,7 @@ export function RequestForm() {
             <br />
             You approve every payment.
           </span>
-          <button className="primary" disabled={busy}>
+          <button className="primary" disabled={busy || !bookingAvailable}>
             {busy ? "Preparing your brief…" : "Find my quotes"}
             <span aria-hidden="true">→</span>
           </button>

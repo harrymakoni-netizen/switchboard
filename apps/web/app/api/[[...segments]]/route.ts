@@ -8,6 +8,11 @@ export const dynamic = "force-dynamic";
 type Context = { params: { segments?: string[] } };
 async function handle(req: NextRequest, { params }: Context) {
   try {
+    if (process.env.HOSTED_UI_ONLY === "1")
+      return NextResponse.json(
+        { error: "Online booking is not available on this deployment yet." },
+        { status: 503 },
+      );
     const env = runtime();
     const parts = params.segments ?? [];
     if (

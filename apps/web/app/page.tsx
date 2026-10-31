@@ -13,7 +13,7 @@ export default function Page() {
             Tell us what needs fixing. We’ll call local businesses, bring back
             their quotes, and leave the choice to you.
           </p>
-          <RequestForm />
+          <RequestForm bookingAvailable={process.env.HOSTED_UI_ONLY !== "1"} />
         </section>
         <aside className="how">
           <h2 className="how-title">From to-do to taken care of.</h2>
