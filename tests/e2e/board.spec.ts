@@ -26,7 +26,9 @@ test("live quotes and mock booking approval", async ({ page }) => {
     .and(page.locator(":enabled"))
     .first()
     .click();
-  await expect(page.getByText("Funds held", { exact: true })).toBeVisible({
+  await expect(
+    page.getByRole("button", { name: "Fast-forward to completion" }),
+  ).toBeVisible({
     timeout: 20000,
   });
   await expect(page.getByText("$95.00", { exact: true }).first()).toBeVisible();
