@@ -1,0 +1,5 @@
+{
+  "name": "two-prices",
+  "text": "Labour $50. Parts $60. Total $110.",
+  "expected": 11000
+}

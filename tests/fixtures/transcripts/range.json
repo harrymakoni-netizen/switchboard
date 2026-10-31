@@ -1,0 +1,5 @@
+{
+  "name": "range",
+  "text": "The price is $90 to $120 for labour.",
+  "expected": 12000
+}

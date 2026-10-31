@@ -1,0 +1,5 @@
+{
+  "name": "wrong-currency",
+  "text": "It costs EUR 100.",
+  "expected": null
+}

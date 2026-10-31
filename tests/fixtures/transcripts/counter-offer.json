@@ -1,0 +1,5 @@
+{
+  "name": "counter-offer",
+  "text": "Original price $120. I can do $100.",
+  "expected": 10000
+}

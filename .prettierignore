@@ -1,0 +1,6 @@
+node_modules
+.next
+pnpm-lock.yaml
+AGENTS.md
+test-results
+playwright-report
