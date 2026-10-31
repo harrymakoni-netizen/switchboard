@@ -20,3 +20,10 @@
 
 - The user explicitly changed the hosting target to Vercel and requested GitHub publication; this supersedes the original Render/deployment milestone gate for publishing the current mock build.
 - The Vercel web deployment uses `HOSTED_UI_ONLY=1` until hosted Postgres and the background worker are connected. This visibly disables booking and returns HTTP 503 from booking APIs instead of pretending that local services are accessible from Vercel. Local mock mode remains fully functional.
+
+- Integrate providers one at a time, starting with PayPal core payments. On 2026-10-31 the user chose “Finish and test the code first; configure credentials later.” No actual sandbox-account verification is claimed.
+- Verified webhook IDs are persisted with outbox intents in one transaction; the worker runs money reconciliation after commit. Raw provider JSON is reloaded as text to preserve snake_case fields despite the database client's JSON camelCase transformation.
+- Payout settlement is based on the recipient item's transaction_status. A SUCCESS batch with no item status remains PENDING. UNCLAIMED closes the job per the scope but is labelled awaiting claim.
+- Provider execution and webhook reconciliation use a per-job session advisory lock. Committed ledger rows are reused on retry, including recovery between an authorization/payout ledger write and its state transition.
+- The standalone sandbox smoke fixture is fixed at $1.00 per leg, requires the buyer to approve both orders, and requires a separate --confirm-done flag before capture. Payout requires an explicitly configured sandbox recipient. Smoke money execution stays in the engine package.
+- The PayPal invoice-only Agent Toolkit remains the next payment-related integration; real mode does not fabricate a receipt.

@@ -1,8 +1,22 @@
-import { sql, getJob, recordPayment, emit } from "@switchboard/db";
-import { fromCents, type Payment, type Quote } from "@switchboard/shared";
-import { MockPayPal, type PayPal } from "@switchboard/paypal";
+import {
+  sql,
+  getJob,
+  recordPayment,
+  emit,
+  paymentLocks,
+} from "@switchboard/db";
+import {
+  fromCents,
+  toCents,
+  type Payment,
+  type Quote,
+} from "@switchboard/shared";
+import { MockPayPal, PayPalHttpError, type PayPal } from "@switchboard/paypal";
 import { smsTemplate, type Telephony } from "@switchboard/calls";
 import { transition, selected } from "./index";
+import { webhookSchema } from "../../paypal/src/webhooks";
+import { locatePayPalJob } from "./paypal-webhooks";
+import { z } from "zod";
 export function createMoneyEngine({
   paypal,
   env,
@@ -69,6 +83,7 @@ export function createMoneyEngine({
   async function createOrder(jobId: string) {
     const j = await getJob(jobId);
     if (j.state !== "BOOK_APPROVED") return;
+    if (await ledger(jobId, "order")) return;
     const [q] = await sql<
       Quote[]
     >`select * from quotes where id=${j.chosenQuoteId}`;
@@ -106,11 +121,21 @@ export function createMoneyEngine({
     if (!auth?.paypalId) throw new Error("Hold missing");
     let payment = await ledger(jobId, "capture");
     if (!payment) {
-      const result = await paypal.capture({
-        jobId,
-        authorizationId: auth.paypalId,
-        invoiceId: "SB-" + jobId,
-      });
+      let result: Awaited<ReturnType<PayPal["capture"]>>;
+      try {
+        result = await paypal.capture({
+          jobId,
+          authorizationId: auth.paypalId,
+          invoiceId: "SB-" + jobId,
+          expectedAmountCents: q.priceCents,
+        });
+      } catch (error) {
+        if (error instanceof PayPalHttpError && error.isDefinitiveDecline) {
+          await transition(jobId, { type: "CAPTURE_DECLINED" });
+          return;
+        }
+        throw error;
+      }
       payment = await recordPayment({
         jobId,
         kind: "capture",
@@ -280,8 +305,25 @@ export function createMoneyEngine({
     if (j.state !== "BOOK_APPROVED") return { ok: true };
     const order = await ledger(jobId, "order");
     if (!order || order.paypalId !== token) throw new Error("Order mismatch");
-    const a = await paypal.authorizeOrder({ jobId, orderId: token });
-    await payment(jobId, "authorization", a.authorizationId, "HELD", a);
+    const quote = await selected(sql, j);
+    if (quote.priceCents === null) throw new Error("Quote price missing");
+    let authorization = await ledger(jobId, "authorization");
+    if (!authorization) {
+      const a = await paypal.authorizeOrder({
+        jobId,
+        orderId: token,
+        expectedAmountCents: quote.priceCents,
+      });
+      authorization = await payment(
+        jobId,
+        "authorization",
+        a.authorizationId,
+        "HELD",
+        a,
+      );
+    }
+    if (!authorization.paypalId || authorization.status !== "HELD")
+      throw new Error("Authorization is not held");
     if ((await getJob(jobId)).state === "CANCELLED") {
       await voidHold(jobId);
       return { ok: true };
@@ -289,20 +331,196 @@ export function createMoneyEngine({
     if ((await getJob(jobId)).state === "BOOK_APPROVED")
       await transition(jobId, {
         type: "PAYPAL_AUTHORIZED",
-        authorizationId: a.authorizationId,
+        authorizationId: authorization.paypalId,
       });
     return { ok: true };
   }
+
+  async function reconcileWebhook(jobId: string, eventId: string) {
+    const [inbox] =
+      await sql`select payload::text as raw_payload from webhook_events where id=${eventId} and provider='paypal'`;
+    if (!inbox) throw new Error("Verified webhook missing");
+    const event = webhookSchema.parse(JSON.parse(inbox.rawPayload));
+    if ((await locatePayPalJob(sql, event)) !== jobId)
+      throw new Error("Webhook job mismatch");
+    const job = await getJob(jobId);
+    const type = event.event_type;
+    if (
+      type === "CHECKOUT.ORDER.APPROVED" ||
+      type === "PAYMENT.AUTHORIZATION.CREATED"
+    ) {
+      const order = await ledger(jobId, "order");
+      if (order?.paypalId) await authorize(jobId, order.paypalId);
+      return;
+    }
+    if (type === "PAYMENT.AUTHORIZATION.VOIDED") {
+      if (job.state !== "CANCELLED") return;
+      const resource = z.object({ id: z.string() }).parse(event.resource);
+      const auth =
+        (await ledger(jobId, "reauthorization")) ??
+        (await ledger(jobId, "authorization"));
+      if (auth?.paypalId !== resource.id)
+        throw new Error("Authorization mismatch");
+      await recordPayment({
+        jobId,
+        kind: "void",
+        paypalId: resource.id,
+        status: "VOIDED",
+        amountCents: auth.amountCents,
+        requestId: jobId + ":void",
+        raw: event,
+      });
+      return;
+    }
+    if (
+      [
+        "PAYMENT.CAPTURE.COMPLETED",
+        "PAYMENT.CAPTURE.DECLINED",
+        "PAYMENT.CAPTURE.DENIED",
+      ].includes(type)
+    ) {
+      const resource = z
+        .object({
+          id: z.string(),
+          amount: z.object({
+            currency_code: z.literal("USD"),
+            value: z.string(),
+          }),
+        })
+        .parse(event.resource);
+      const q = await selected(sql, job);
+      const amount = toCents(resource.amount.value);
+      if (
+        !job.approvedDoneAt ||
+        !job.payoutEmailShownAt ||
+        amount !== q.priceCents
+      )
+        throw new Error("Capture webhook lacks matching approval or amount");
+      let existing = await ledger(jobId, "capture");
+      if (existing && existing.paypalId !== resource.id)
+        throw new Error("Capture id mismatch");
+      const status =
+        type === "PAYMENT.CAPTURE.COMPLETED" ? "COMPLETED" : "DECLINED";
+      if (existing?.status === "COMPLETED" && status !== "COMPLETED") return; // Out-of-order denial cannot undo a completed capture.
+      if (!existing)
+        existing = await recordPayment({
+          jobId,
+          kind: "capture",
+          paypalId: resource.id,
+          status,
+          amountCents: amount,
+          requestId: jobId + ":capture",
+          raw: event,
+        });
+      else {
+        await sql`update payments set status=${status} where id=${existing.id}`;
+        await emit(jobId, "payment.updated", {
+          kind: "capture",
+          status,
+          amountCents: amount,
+        });
+      }
+      if (job.state === "COMPLETED")
+        await transition(
+          jobId,
+          status === "COMPLETED"
+            ? { type: "CAPTURE_COMPLETED", captureId: resource.id }
+            : { type: "CAPTURE_DECLINED" },
+        );
+      return;
+    }
+    const payoutStates: Record<string, "SUCCEEDED" | "UNCLAIMED" | "FAILED"> = {
+      "PAYMENT.PAYOUTS-ITEM.SUCCEEDED": "SUCCEEDED",
+      "PAYMENT.PAYOUTS-ITEM.UNCLAIMED": "UNCLAIMED",
+      "PAYMENT.PAYOUTS-ITEM.FAILED": "FAILED",
+      "PAYMENT.PAYOUTS-ITEM.RETURNED": "FAILED",
+    };
+    const status = payoutStates[type];
+    if (status) {
+      const resource = z
+        .object({
+          payout_batch_id: z.string(),
+          payout_item: z.object({
+            receiver: z.string().email(),
+            amount: z.object({ currency: z.literal("USD"), value: z.string() }),
+          }),
+        })
+        .parse(event.resource);
+      const p = await ledger(jobId, "payout");
+      const c = await ledger(jobId, "capture");
+      const q = await selected(sql, job);
+      if (
+        !p ||
+        p.paypalId !== resource.payout_batch_id ||
+        c?.status !== "COMPLETED" ||
+        q.payoutEmail !== resource.payout_item.receiver ||
+        toCents(resource.payout_item.amount.value) !== c.amountCents
+      )
+        throw new Error("Payout webhook recipient or amount mismatch");
+      const settledStatus =
+        p.status === "SUCCEEDED"
+          ? "SUCCEEDED"
+          : p.status === "UNCLAIMED" && status !== "SUCCEEDED"
+            ? "UNCLAIMED"
+            : status;
+      await sql`update payments set status=${settledStatus} where id=${p.id}`;
+      await emit(jobId, "payment.updated", {
+        kind: "payout",
+        status: settledStatus,
+        amountCents: p.amountCents,
+      });
+      // A retry must finish the transition even if the prior process stopped after its ledger write.
+      if (job.state === "PAID_OUT")
+        await transition(
+          jobId,
+          settledStatus === "FAILED"
+            ? { type: "PAYOUT_FAILED" }
+            : { type: "PAYOUT_SETTLED", status: settledStatus },
+        );
+      return;
+    }
+    if (type === "INVOICING.INVOICE.PAID") {
+      const p = await ledger(jobId, "invoice");
+      if (p) {
+        await sql`update payments set status='PAID' where id=${p.id}`;
+        await emit(jobId, "payment.updated", {
+          kind: "invoice",
+          status: "PAID",
+          amountCents: p.amountCents,
+        });
+      }
+    }
+  }
+  // Serialize payment execution and verified webhook reconciliation across worker instances.
+  // This is an advisory session lock, not a DB transaction held across a provider request.
+  function locked<Args extends [string, ...string[]], Result>(
+    fn: (...args: Args) => Promise<Result>,
+  ) {
+    return async (...args: Args): Promise<Result> => {
+      const connection = await paymentLocks.reserve();
+      try {
+        await connection`select pg_advisory_lock(hashtextextended(${args[0]},0))`;
+        return await fn(...args);
+      } finally {
+        try {
+          await connection`select pg_advisory_unlock(hashtextextended(${args[0]},0))`;
+        } finally {
+          connection.release();
+        }
+      }
+    };
+  }
   return {
-    createOrder,
-    authorize,
-    capture,
-    payout,
-    voidHold,
-    reauthorize,
-    receipt,
-    pollCapture,
-    pollPayout,
+    createOrder: locked(createOrder),
+    authorize: locked(authorize),
+    capture: locked(capture),
+    payout: locked(payout),
+    voidHold: locked(voidHold),
+    reauthorize: locked(reauthorize),
+    receipt: locked(receipt),
+    pollCapture: locked(pollCapture),
+    pollPayout: locked(pollPayout),
+    reconcileWebhook: locked(reconcileWebhook),
     restore,
   };
 }

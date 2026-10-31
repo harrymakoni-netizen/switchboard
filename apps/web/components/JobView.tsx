@@ -110,12 +110,23 @@ export function JobView({ id, demo }: { id: string; demo: boolean }) {
       earliestSlot: quote?.earliestSlot ?? null,
     };
   });
+  const payoutPayment = payments.find((p) => p.kind === "payout");
+  const capturePayment = payments.find((p) => p.kind === "capture");
   const payment = payments.some((p) => p.kind === "void")
     ? "Released"
-    : payments.some((p) => p.kind === "payout")
-      ? "Paid"
-      : payments.some((p) => p.kind === "capture")
-        ? "Captured"
+    : payoutPayment
+      ? ({
+          SUCCEEDED: "Paid",
+          UNCLAIMED: "Unclaimed",
+          PENDING: "Payout pending",
+          FAILED: "Payout failed",
+        }[payoutPayment.status] ?? "Payout pending")
+      : capturePayment
+        ? capturePayment.status === "COMPLETED"
+          ? "Captured"
+          : capturePayment.status === "DECLINED"
+            ? "Capture declined"
+            : "Capture pending"
         : payments.some((p) => p.kind === "authorization")
           ? "Held"
           : "—";
@@ -132,7 +143,10 @@ export function JobView({ id, demo }: { id: string; demo: boolean }) {
       "Has the repair been completed and is everything working?",
     COMPLETED: "Completion confirmed. Processing the sandbox payment.",
     PAID_OUT: "Payment captured. Waiting for payout confirmation.",
-    CLOSED: "Job complete. The business has been paid.",
+    CLOSED:
+      payoutPayment?.status === "UNCLAIMED"
+        ? "Payout sent. The business still needs to claim it."
+        : "Job complete. The business has been paid.",
     CANCELLED: "Booking cancelled. Any authorization will be voided.",
     ISSUE: "This job needs attention. Any existing hold stays in place.",
   };
@@ -214,7 +228,9 @@ export function JobView({ id, demo }: { id: string; demo: boolean }) {
           </p>
           {job.state === "CLOSED" && (
             <div className="closed-banner">
-              All taken care of. Thanks for using Switchboard.
+              {payoutPayment?.status === "UNCLAIMED"
+                ? "Job complete. The payout is waiting for the business to claim it."
+                : "All taken care of. Thanks for using Switchboard."}
             </div>
           )}
           <div className="workspace">

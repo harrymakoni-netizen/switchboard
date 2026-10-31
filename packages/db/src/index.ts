@@ -2,11 +2,18 @@ import postgres from "postgres";
 import { drizzle } from "drizzle-orm/postgres-js";
 import * as schema from "./schema";
 import type { Job, Snapshot, Payment } from "@switchboard/shared";
-export const sql = postgres(
+const connectionString =
   process.env.DATABASE_URL ??
-    "postgres://switchboard:switchboard@localhost:5432/switchboard",
-  { transform: postgres.camel, max: 10 },
-);
+  "postgres://switchboard:switchboard@localhost:5432/switchboard";
+export const sql = postgres(connectionString, {
+  transform: postgres.camel,
+  max: 10,
+});
+// A distinct pool prevents reserved advisory-lock sessions from exhausting the query pool.
+export const paymentLocks = postgres(connectionString, {
+  max: 4,
+  idle_timeout: 20,
+});
 export const db = drizzle(sql, { schema });
 export type Tx = postgres.TransactionSql;
 export async function createJob(

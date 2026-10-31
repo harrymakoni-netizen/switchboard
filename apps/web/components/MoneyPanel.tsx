@@ -20,6 +20,8 @@ export function MoneyPanel({
   const captured = payments.some(
     (p) => p.kind === "capture" && p.status === "COMPLETED",
   );
+  const capturePayment = payments.find((p) => p.kind === "capture");
+  const payoutPayment = payments.find((p) => p.kind === "payout");
   const invoice = payments.find((p) => p.kind === "invoice");
   return (
     <>
@@ -36,11 +38,25 @@ export function MoneyPanel({
           </strong>
         </div>
         <div className="money-row">
-          <span>Captured</span>
+          <span>
+            {capturePayment?.status === "PENDING"
+              ? "Capture pending"
+              : capturePayment?.status === "DECLINED"
+                ? "Capture declined"
+                : "Captured"}
+          </span>
           <strong>{amount("capture")}</strong>
         </div>
         <div className="money-row">
-          <span>Paid out</span>
+          <span>
+            {payoutPayment?.status === "PENDING"
+              ? "Payout pending"
+              : payoutPayment?.status === "UNCLAIMED"
+                ? "Awaiting claim"
+                : payoutPayment?.status === "FAILED"
+                  ? "Payout failed"
+                  : "Paid out"}
+          </span>
           <strong>{amount("payout")}</strong>
         </div>
         {invoice && (

@@ -1,3 +1,4 @@
+import { registerPayPalWebhook } from "./webhooks/paypal";
 import "dotenv/config";
 import Fastify from "fastify";
 import PgBoss from "pg-boss";
@@ -9,8 +10,13 @@ import {
   type Call,
   type Quote,
 } from "@switchboard/shared";
-import { sql, getJob, emit } from "@switchboard/db";
-import { transition, selected, createMoneyEngine } from "@switchboard/engine";
+import { sql, getJob, emit, paymentLocks } from "@switchboard/db";
+import {
+  transition,
+  selected,
+  createMoneyEngine,
+  receivePayPalWebhook,
+} from "@switchboard/engine";
 import { MockPayPal, HttpPayPal } from "@switchboard/paypal";
 import { MockLLM, AnthropicLLM, extract } from "@switchboard/agents";
 import {
@@ -141,7 +147,9 @@ async function enqueue(name: string, jobId: string, startAfter?: Date) {
     { jobId },
     {
       startAfter,
-      singletonKey: jobId + ":" + name,
+      ...(!["pollCapture", "pollPayout"].includes(name)
+        ? { singletonKey: jobId + ":" + name }
+        : {}),
       retryLimit: 5,
       retryDelay: 2,
     },
@@ -220,7 +228,10 @@ async function completionCall(jobId: string) {
 }
 const money = createMoneyEngine({ paypal, env, enqueue, tel });
 await money.restore();
-const handlers: Record<string, (jobId: string) => Promise<void>> = {
+const handlers: Record<
+  string,
+  (jobId: string, payload?: { eventId?: string }) => Promise<void>
+> = {
   runFinding,
   runCalls,
   createOrder: money.createOrder,
@@ -235,14 +246,18 @@ const handlers: Record<string, (jobId: string) => Promise<void>> = {
   receipt: money.receipt,
   pollCapture: money.pollCapture,
   pollPayout: money.pollPayout,
+  paypalWebhook: async (jobId, payload) => {
+    if (!payload?.eventId) throw new Error("Missing webhook event id");
+    await money.reconcileWebhook(jobId, payload.eventId);
+  },
 };
 for (const name of Object.keys(handlers)) {
   await boss.createQueue(name);
-  await boss.work<{ jobId: string }>(
+  await boss.work<{ jobId: string; payload?: { eventId?: string } }>(
     name,
     { pollingIntervalSeconds: 0.5 },
     async (jobs) => {
-      for (const j of jobs) await handlers[name](j.data.jobId);
+      for (const j of jobs) await handlers[name](j.data.jobId, j.data.payload);
     },
   );
 }
@@ -257,7 +272,7 @@ async function dispatch() {
       if (!handlers[e.name]) continue;
       await boss.send(
         e.name,
-        { jobId: e.jobId },
+        { jobId: e.jobId, payload: e.payload },
         { singletonKey: "effect-" + e.id, retryLimit: 3, retryDelay: 2 },
       );
       await sql`update effects set dispatched_at=now() where id=${e.id}`;
@@ -272,7 +287,17 @@ async function dispatch() {
   }
 }
 const timer = setInterval(() => void dispatch(), 250);
-const app = Fastify({ logger: true });
+const app = Fastify({
+  logger: {
+    redact: [
+      "req.headers.authorization",
+      "req.headers.paypal-transmission-sig",
+    ],
+  },
+});
+await registerPayPalWebhook(app, (headers, body) =>
+  receivePayPalWebhook(paypal, headers, body),
+);
 app.get("/health", async () => ({
   ok: true,
   mode: env.MOCK_TELEPHONY === "1" ? "mock" : "sandbox",
@@ -291,11 +316,9 @@ app.post("/internal/authorize", async (req, reply) => {
   try {
     return await money.authorize(jobId, token);
   } catch (error) {
-    return reply
-      .code(400)
-      .send({
-        error: error instanceof Error ? error.message : "Authorization failed",
-      });
+    return reply.code(400).send({
+      error: error instanceof Error ? error.message : "Authorization failed",
+    });
   }
 });
 app.setErrorHandler((error, _req, reply) => {
@@ -309,7 +332,7 @@ async function stop() {
   clearInterval(timer);
   await boss.stop();
   await app.close();
-  await sql.end();
+  await Promise.all([sql.end(), paymentLocks.end()]);
   process.exit(0);
 }
 process.on("SIGTERM", () => void stop());

@@ -49,7 +49,7 @@ The e2e command starts the production web server and worker, so run `pnpm build`
 - `apps/worker`: Fastify and pg-boss. Dispatches committed outbox effects, mock calls, booking confirmations, delayed slots, capture/payout/void, polling, receipts, and reauthorization.
 - `packages/engine`: strict state graph and guards. Transitions lock the job row in a transaction and atomically write state, events, and durable side-effect intents. Payment execution lives exclusively in `packages/engine/src/money.ts` and runs after commit; the worker only schedules these engine operations.
 - `packages/db`: Drizzle schema, SQL migration, queries, payment ledger, and Postgres LISTEN/NOTIFY.
-- `packages/paypal`: sandbox-only REST adapter, mock stateful adapter, webhook-verification/deduplication helper, and polling methods. The real webhook-to-engine wiring is pending M7.
+- `packages/paypal`: sandbox-only REST adapter, mock stateful adapter, webhook-verification/deduplication helper, and polling methods. Verified webhooks now feed durable engine tasks; sandbox account verification is still pending.
 - `packages/agents`: Anthropic adapter with validated JSON and one retry, deterministic mock planner/extractor, finder schema, and untrusted-data prompts. These agents have no payment tools.
 - `packages/calls` / `packages/bots`: typed telephony boundary, AI disclosure, bounded concurrent mock conversations, SMS templates, and three synthetic bot personas.
 
@@ -69,7 +69,7 @@ All code is newly written from the supplied scope. No RollCall source was provid
 
 The environment has no configured provider credentials. **Keep mock mode enabled.** The worker deliberately refuses real telephony rather than silently substituting mock calls.
 
-Remaining implementation and verification: Twilio outbound calls, signature-validated webhooks and media bridge; selected realtime voice provider; real bot phone numbers; Kernel discovery; PayPal webhook event routing; invoice-only PayPal Agent Toolkit receipt flow; and a manual end-to-end run that matches the sandbox ledger. The sandbox REST methods and Anthropic JSON adapter exist but have not been exercised with live credentials.
+Remaining implementation and verification: Twilio outbound calls, signature-validated webhooks and media bridge; selected realtime voice provider; real bot phone numbers; Kernel discovery; invoice-only PayPal Agent Toolkit receipt flow; and a manual end-to-end run that matches the sandbox ledger. The sandbox REST methods and Anthropic JSON adapter exist but have not been exercised with live credentials.
 
 Configure the variables listed in `.env.example` through environment secrets. For PayPal, create a sandbox business account and REST app with Payouts, a sandbox personal buyer, and personal recipient accounts for the two accepting bots. Set `TENDAI_PAYOUT_EMAIL` and `QUICKFIX_PAYOUT_EMAIL` to those sandbox recipient emails. Demo `example.com` addresses must be replaced before real sandbox runs.
 
@@ -90,3 +90,7 @@ The hosted web deployment has `HOSTED_UI_ONLY=1`: it visibly disables booking an
 Keep `PAYPAL_ENV=sandbox`, `DEMO_MODE=1`, and all MOCK flags at `1`. Configure `DATABASE_URL`, `PUBLIC_WORKER_URL`, `APP_URL`, and a newly generated `SESSION_SECRET` in both server environments. Run migrations against the dedicated hosted database before enabling requests.
 
 Repository source is pushed to `main`. The initial project was deployed from inline source; repository-based deployments are supported and verified separately. Automatic deployment on every push still requires connecting this repository under the existing Vercel project’s Settings → Git.
+
+## Integration 1: PayPal payments
+
+Payment and webhook code is implemented and tested offline. Sandbox credentials and actual provider verification are intentionally deferred, as requested. See [PayPal setup, smoke commands, and acceptance checks](docs/paypal-sandbox.md). The receipt-agent integration remains separate; M7 has not passed.

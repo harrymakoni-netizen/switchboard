@@ -4,7 +4,8 @@
     "packages/**/*.ts",
     "apps/**/*.ts",
     "apps/**/*.tsx",
-    "tests/**/*.ts"
+    "tests/**/*.ts",
+    "scripts/**/*.ts"
   ],
   "exclude": ["node_modules", "apps/web/.next"]
 }

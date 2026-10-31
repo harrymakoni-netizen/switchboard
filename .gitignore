@@ -8,3 +8,5 @@ test-results/
 *.tsbuildinfo
 
 .vercel/
+
+.paypal-smoke/

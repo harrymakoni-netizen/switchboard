@@ -1,6 +1,6 @@
 import { randomUUID, timingSafeEqual } from "node:crypto";
 import { z } from "zod";
-import { fromCents, type Cents } from "@switchboard/shared";
+import { fromCents, toCents, type Cents } from "@switchboard/shared";
 export interface OrderArgs {
   jobId: string;
   amountCents: Cents;
@@ -13,6 +13,7 @@ export interface PayPal {
   authorizeOrder(a: {
     jobId: string;
     orderId: string;
+    expectedAmountCents?: Cents;
   }): Promise<{ authorizationId: string; expiresAt: string }>;
   reauthorize(a: {
     jobId: string;
@@ -23,6 +24,7 @@ export interface PayPal {
     jobId: string;
     authorizationId: string;
     invoiceId: string;
+    expectedAmountCents?: Cents;
   }): Promise<{
     captureId: string;
     status: "COMPLETED" | "PENDING" | "DECLINED";
@@ -45,6 +47,30 @@ export interface PayPal {
   pollPayout(
     id: string,
   ): Promise<"SUCCEEDED" | "UNCLAIMED" | "PENDING" | "FAILED">;
+}
+export class PayPalHttpError extends Error {
+  constructor(
+    readonly status: number,
+    readonly issues: string[],
+  ) {
+    super(
+      `PayPal HTTP ${status}${issues.length ? ": " + issues.join(", ") : ""}`,
+    );
+    this.name = "PayPalHttpError";
+  }
+  get isDefinitiveDecline() {
+    return (
+      this.status === 422 &&
+      this.issues.some((issue) =>
+        [
+          "INSTRUMENT_DECLINED",
+          "PAYMENT_DENIED",
+          "AUTHORIZATION_DENIED",
+          "PAYER_CANNOT_PAY",
+        ].includes(issue),
+      )
+    );
+  }
 }
 const id = () => randomUUID().replaceAll("-", "").slice(0, 17).toUpperCase();
 export class MockPayPal implements PayPal {
@@ -82,7 +108,11 @@ export class MockPayPal implements PayPal {
       return { orderId, approveUrl: a.returnUrl + "?token=" + orderId };
     });
   }
-  async authorizeOrder(a: { jobId: string; orderId: string }) {
+  async authorizeOrder(a: {
+    jobId: string;
+    orderId: string;
+    expectedAmountCents?: Cents;
+  }) {
     return this.once(a.jobId + ":authorize", a, () => {
       const order = this.orders.get(a.orderId);
       if (!order || order.jobId !== a.jobId) throw new Error("Order mismatch");
@@ -111,6 +141,7 @@ export class MockPayPal implements PayPal {
     jobId: string;
     authorizationId: string;
     invoiceId: string;
+    expectedAmountCents?: Cents;
   }) {
     return this.once(a.jobId + ":capture", a, () => {
       const h = this.hold(a);
@@ -162,6 +193,32 @@ export class MockPayPal implements PayPal {
   async pollPayout() {
     return "SUCCEEDED" as const;
   }
+}
+export type CaptureStatus = "COMPLETED" | "PENDING" | "DECLINED";
+export type PayoutStatus = "SUCCEEDED" | "UNCLAIMED" | "PENDING" | "FAILED";
+export function captureStatus(value: string): CaptureStatus {
+  return value === "COMPLETED"
+    ? "COMPLETED"
+    : ["DECLINED", "DENIED", "FAILED"].includes(value)
+      ? "DECLINED"
+      : "PENDING";
+}
+export function payoutStatus(value: string): PayoutStatus {
+  return value === "SUCCESS"
+    ? "SUCCEEDED"
+    : value === "UNCLAIMED"
+      ? "UNCLAIMED"
+      : [
+            "FAILED",
+            "RETURNED",
+            "DENIED",
+            "BLOCKED",
+            "CANCELED",
+            "REFUNDED",
+            "REVERSED",
+          ].includes(value)
+        ? "FAILED"
+        : "PENDING";
 }
 const record = z.record(z.unknown());
 const orderResponse = z.object({
@@ -218,7 +275,20 @@ export class HttpPayPal implements PayPal {
       ...(body === undefined ? {} : { body: JSON.stringify(body) }),
       signal: AbortSignal.timeout(20000),
     });
-    if (!r.ok) throw new Error(`PayPal ${method} ${path}: ${r.status}`);
+    if (!r.ok) {
+      const data = await r.json().catch(() => null);
+      const parsed = z
+        .object({
+          details: z.array(z.object({ issue: z.string() })).optional(),
+        })
+        .safeParse(data);
+      const issues = parsed.success
+        ? (parsed.data.details ?? [])
+            .map((d) => d.issue)
+            .filter((issue) => /^[A-Z0-9_]{1,80}$/.test(issue))
+        : [];
+      throw new PayPalHttpError(r.status, issues);
+    }
     return r.status === 204 ? {} : r.json();
   }
   async createOrder(a: OrderArgs) {
@@ -257,14 +327,28 @@ export class HttpPayPal implements PayPal {
     if (!link) throw new Error("PayPal approval URL missing");
     return { orderId: d.id, approveUrl: link.href };
   }
-  async authorizeOrder(a: { jobId: string; orderId: string }) {
+  async authorizeOrder(a: {
+    jobId: string;
+    orderId: string;
+    expectedAmountCents?: Cents;
+  }) {
     const d = z
       .object({
         purchase_units: z.array(
           z.object({
             payments: z.object({
               authorizations: z.array(
-                z.object({ id: z.string(), expiration_time: z.string() }),
+                z.object({
+                  id: z.string(),
+                  expiration_time: z.string(),
+                  status: z.string().optional(),
+                  amount: z
+                    .object({
+                      currency_code: z.literal("USD"),
+                      value: z.string(),
+                    })
+                    .optional(),
+                }),
               ),
             }),
           }),
@@ -280,6 +364,13 @@ export class HttpPayPal implements PayPal {
       );
     const auth = d.purchase_units[0]?.payments.authorizations[0];
     if (!auth) throw new Error("Authorization missing");
+    if (auth.status && auth.status !== "CREATED")
+      throw new Error("Authorization is not held: " + auth.status);
+    if (
+      a.expectedAmountCents !== undefined &&
+      (!auth.amount || toCents(auth.amount.value) !== a.expectedAmountCents)
+    )
+      throw new Error("Authorization amount mismatch");
     return { authorizationId: auth.id, expiresAt: auth.expiration_time };
   }
   async reauthorize(a: { jobId: string; authorizationId: string; n: number }) {
@@ -299,11 +390,15 @@ export class HttpPayPal implements PayPal {
     jobId: string;
     authorizationId: string;
     invoiceId: string;
+    expectedAmountCents?: Cents;
   }) {
     const d = z
       .object({
         id: z.string(),
-        status: z.enum(["COMPLETED", "PENDING", "DECLINED"]),
+        status: z.string(),
+        amount: z
+          .object({ currency_code: z.literal("USD"), value: z.string() })
+          .optional(),
       })
       .parse(
         await this.request(
@@ -313,7 +408,12 @@ export class HttpPayPal implements PayPal {
           a.jobId + ":capture",
         ),
       );
-    return { captureId: d.id, status: d.status };
+    if (
+      a.expectedAmountCents !== undefined &&
+      (!d.amount || toCents(d.amount.value) !== a.expectedAmountCents)
+    )
+      throw new Error("Capture amount mismatch");
+    return { captureId: d.id, status: captureStatus(d.status) };
   }
   async voidAuthorization(a: { jobId: string; authorizationId: string }) {
     await this.request(
@@ -364,48 +464,66 @@ export class HttpPayPal implements PayPal {
   }
   async verifyWebhook(h: Record<string, string>, rawBody: string) {
     try {
+      const required = [
+        "paypal-auth-algo",
+        "paypal-cert-url",
+        "paypal-transmission-id",
+        "paypal-transmission-sig",
+        "paypal-transmission-time",
+      ];
+      if (!this.webhookId || required.some((key) => !h[key])) return false;
+      const certificate = new URL(h["paypal-cert-url"]);
+      if (
+        certificate.protocol !== "https:" ||
+        (certificate.hostname !== "api.paypal.com" &&
+          certificate.hostname !== "api.sandbox.paypal.com")
+      )
+        return false;
       const event = record.parse(JSON.parse(rawBody));
-      const result = z
-        .object({ verification_status: z.string() })
-        .parse(
-          await this.request(
-            "/v1/notifications/verify-webhook-signature",
-            "POST",
-            {
-              auth_algo: h["paypal-auth-algo"],
-              cert_url: h["paypal-cert-url"],
-              transmission_id: h["paypal-transmission-id"],
-              transmission_sig: h["paypal-transmission-sig"],
-              transmission_time: h["paypal-transmission-time"],
-              webhook_id: this.webhookId,
-              webhook_event: event,
-            },
-          ),
-        );
+      const result = z.object({ verification_status: z.string() }).parse(
+        await this.request(
+          "/v1/notifications/verify-webhook-signature",
+          "POST",
+          {
+            auth_algo: h["paypal-auth-algo"],
+            cert_url: h["paypal-cert-url"],
+            transmission_id: h["paypal-transmission-id"],
+            transmission_sig: h["paypal-transmission-sig"],
+            transmission_time: h["paypal-transmission-time"],
+            webhook_id: this.webhookId,
+            webhook_event: event,
+          },
+        ),
+      );
       return result.verification_status === "SUCCESS";
     } catch {
       return false;
     }
   }
-  async pollCapture(id: string) {
-    return z
-      .object({ status: z.enum(["COMPLETED", "PENDING", "DECLINED"]) })
+  async pollCapture(id: string): Promise<CaptureStatus> {
+    const value = z
+      .object({ status: z.string() })
       .parse(
         await this.request("/v2/payments/captures/" + encodeURIComponent(id)),
-      ).status;
+      );
+    return captureStatus(value.status);
   }
-  async pollPayout(
-    id: string,
-  ): Promise<"SUCCEEDED" | "UNCLAIMED" | "PENDING" | "FAILED"> {
-    const s = z
-      .object({ batch_header: z.object({ batch_status: z.string() }) })
+  async pollPayout(id: string): Promise<PayoutStatus> {
+    const data = z
+      .object({
+        batch_header: z.object({ batch_status: z.string() }),
+        items: z.array(z.object({ transaction_status: z.string() })).optional(),
+      })
       .parse(
         await this.request("/v1/payments/payouts/" + encodeURIComponent(id)),
-      ).batch_header.batch_status;
-    return s === "SUCCESS"
-      ? "SUCCEEDED"
-      : s === "DENIED"
-        ? "FAILED"
-        : "PENDING";
+      );
+    // This engine creates exactly one payout item. A successful batch is only an acknowledgement.
+    if (data.items?.length === 1)
+      return payoutStatus(data.items[0].transaction_status);
+    if (data.items && data.items.length > 1)
+      throw new Error("Expected one payout recipient");
+    return ["DENIED", "CANCELED"].includes(data.batch_header.batch_status)
+      ? "FAILED"
+      : "PENDING";
   }
 }
