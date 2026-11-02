@@ -1,7 +1,22 @@
 import { z } from "zod";
+
+export function assertSandboxMode(
+  source: Record<string, string | undefined> = process.env,
+) {
+  const paypalEnv = source.PAYPAL_ENV ?? "sandbox";
+  if (paypalEnv !== "sandbox")
+    throw new Error("Switchboard requires PAYPAL_ENV=sandbox");
+  return paypalEnv;
+}
+
 export function loadEnv(
   source: Record<string, string | undefined> = process.env,
 ) {
+  const normalized = {
+    ...source,
+    PAYPAL_ENV: source.PAYPAL_ENV ?? "sandbox",
+  };
+  assertSandboxMode(normalized);
   const env = z
     .object({
       PAYPAL_ENV: z.literal("sandbox"),
@@ -15,7 +30,7 @@ export function loadEnv(
       MOCK_LLM: z.enum(["0", "1"]).default("0"),
       MOCK_PARTNERS: z.enum(["0", "1"]).default("0"),
     })
-    .parse(source);
+    .parse(normalized);
   const required = [
     ...(env.MOCK_PAYPAL === "0"
       ? ["PAYPAL_CLIENT_ID", "PAYPAL_CLIENT_SECRET", "PAYPAL_WEBHOOK_ID"]

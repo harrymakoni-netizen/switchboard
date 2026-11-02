@@ -14,6 +14,8 @@ const env = {
 describe("startup safety", () => {
   it("runs offline without keys", () =>
     expect(loadEnv(env).PAYPAL_ENV).toBe("sandbox"));
+  it("defaults to sandbox when unset", () =>
+    expect(loadEnv({ ...env, PAYPAL_ENV: undefined }).PAYPAL_ENV).toBe("sandbox"));
   it("refuses live money", () =>
     expect(() => loadEnv({ ...env, PAYPAL_ENV: "live" })).toThrow());
   it("refuses missing credentials", () =>

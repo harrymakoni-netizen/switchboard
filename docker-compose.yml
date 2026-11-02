@@ -5,7 +5,7 @@ services:
       POSTGRES_USER: switchboard
       POSTGRES_PASSWORD: switchboard
       POSTGRES_DB: switchboard
-    ports: ["5432:5432"]
+    ports: ["5433:5432"]
     volumes: ["switchboard-db:/var/lib/postgresql/data"]
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U switchboard"]

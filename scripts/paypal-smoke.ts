@@ -1,6 +1,7 @@
 import { config } from "dotenv";
 import { readFile, mkdir, writeFile, rename } from "node:fs/promises";
 import { resolve, dirname } from "node:path";
+import { assertSandboxMode } from "../packages/shared/src/env";
 import { HttpPayPal } from "../packages/paypal/src/index";
 import {
   newSmokeState,
@@ -18,8 +19,7 @@ async function main() {
     );
     return;
   }
-  if (process.env.PAYPAL_ENV !== "sandbox")
-    throw new Error("PAYPAL_ENV must be sandbox");
+  assertSandboxMode(process.env);
   for (const key of ["PAYPAL_CLIENT_ID", "PAYPAL_CLIENT_SECRET"])
     if (!process.env[key]?.trim())
       throw new Error(
