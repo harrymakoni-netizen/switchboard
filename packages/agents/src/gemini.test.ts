@@ -182,7 +182,7 @@ describe("Gemini provider contract", () => {
     ).rejects.toThrow(/after two attempts/);
     expect(t.requests).toHaveLength(2);
   });
-  it("retries a temporary provider outage without changing the validated output", async () => {
+  it("uses the fallback model for a temporary outage with the same validated schema", async () => {
     const t = transport([
       new Response(
         JSON.stringify({
@@ -200,20 +200,28 @@ describe("Gemini provider contract", () => {
       }),
     ).resolves.toEqual({ ok: true });
     expect(t.requests).toHaveLength(2);
+    expect(t.requests[0].url).toContain(DEFAULT_GEMINI_MODEL);
+    expect(t.requests[1].url).toContain("gemini-3.5-flash-lite");
+    expect(JSON.parse(String(t.requests[1].init.body))).toEqual(
+      JSON.parse(String(t.requests[0].init.body)),
+    );
   });
-  it("does not retry authentication errors as formatting errors", async () => {
-    const t = transport([
-      new Response(
-        JSON.stringify({
-          error: {
-            code: 403,
-            message: "test upstream detail",
-            status: "PERMISSION_DENIED",
-          },
-        }),
-        { status: 403, headers: { "content-type": "application/json" } },
+  it("stops after the fallback model also fails", async () => {
+    const t = transport(
+      [503, 503].map(
+        (status) =>
+          new Response(
+            JSON.stringify({
+              error: {
+                code: status,
+                message: "High demand",
+                status: "UNAVAILABLE",
+              },
+            }),
+            { status, headers: { "content-type": "application/json" } },
+          ),
       ),
-    ]);
+    );
     await expect(
       new GeminiLLM({ apiKey: "test", fetch: t.fetcher }).json({
         system: "test",
@@ -223,8 +231,35 @@ describe("Gemini provider contract", () => {
     ).rejects.toThrow(
       "Gemini request failed. Check server configuration or retry.",
     );
-    expect(t.requests).toHaveLength(1);
+    expect(t.requests).toHaveLength(2);
   });
+  it.each([400, 401, 403, 429])(
+    "does not switch models for HTTP %s",
+    async (status) => {
+      const t = transport([
+        new Response(
+          JSON.stringify({
+            error: {
+              code: status,
+              message: "test upstream detail",
+              status: "PERMISSION_DENIED",
+            },
+          }),
+          { status, headers: { "content-type": "application/json" } },
+        ),
+      ]);
+      await expect(
+        new GeminiLLM({ apiKey: "test", fetch: t.fetcher }).json({
+          system: "test",
+          user: "source",
+          schema: z.object({ ok: z.boolean() }),
+        }),
+      ).rejects.toThrow(
+        "Gemini request failed. Check server configuration or retry.",
+      );
+      expect(t.requests).toHaveLength(1);
+    },
+  );
   it("allows a model override and requires a Gemini key", () => {
     vi.stubEnv("GEMINI_API_KEY", "");
     expect(() => new GeminiLLM()).toThrow(/GEMINI_API_KEY/);
