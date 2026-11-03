@@ -45,8 +45,9 @@ export class GeminiLLM implements LLM {
               ? "\nThe prior output failed validation. Return the required schema exactly."
               : ""),
           output: Output.object({ schema: args.schema }),
+          reasoning: "low",
           maxOutputTokens: args.maxTokens ?? 2048,
-          maxRetries: 0,
+          maxRetries: 1,
           abortSignal: AbortSignal.timeout(30000),
         });
         return args.schema.parse(result.output);

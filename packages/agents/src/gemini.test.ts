@@ -58,6 +58,7 @@ describe("Gemini provider contract", () => {
     expect(body.generationConfig).toMatchObject({
       responseMimeType: "application/json",
       maxOutputTokens: 900,
+      thinkingConfig: { thinkingLevel: "low" },
     });
     expect(body.generationConfig.responseJsonSchema.properties.name.type).toBe(
       "string",
@@ -179,6 +180,25 @@ describe("Gemini provider contract", () => {
         schema: z.object({ value: z.number() }),
       }),
     ).rejects.toThrow(/after two attempts/);
+    expect(t.requests).toHaveLength(2);
+  });
+  it("retries a temporary provider outage without changing the validated output", async () => {
+    const t = transport([
+      new Response(
+        JSON.stringify({
+          error: { code: 503, message: "High demand", status: "UNAVAILABLE" },
+        }),
+        { status: 503, headers: { "content-type": "application/json" } },
+      ),
+      '{"ok":true}',
+    ]);
+    await expect(
+      new GeminiLLM({ apiKey: "test", fetch: t.fetcher }).json({
+        system: "test",
+        user: "source",
+        schema: z.object({ ok: z.boolean() }),
+      }),
+    ).resolves.toEqual({ ok: true });
     expect(t.requests).toHaveLength(2);
   });
   it("does not retry authentication errors as formatting errors", async () => {
