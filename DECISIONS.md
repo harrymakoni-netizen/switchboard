@@ -37,3 +37,4 @@
 - Gemini migration verification: lint, strict typecheck, production build, 105 unit/integration tests, and six mock browser scenarios pass. Database tests ran against the configured local Postgres service on 5433 via an explicit DATABASE_URL; the separately reviewed fallback-port issue was not changed in this migration. No live Google requests were made.
 
 - Render worker deployment uses a Web Service with /health and a separate pre-deploy migration command. PUBLIC_WORKER_URL falls back to Render's trusted RENDER_EXTERNAL_URL when unset, avoiding a first-deployment URL configuration loop. Explicit worker URL overrides are preserved.
+- Hosted verification found Render's external Postgres endpoint rejects the initial Vercel connection with "SSL/TLS required". Both postgres.js pools now enable TLS with certificate validation on Vercel; Render internal and local connections retain their existing settings.

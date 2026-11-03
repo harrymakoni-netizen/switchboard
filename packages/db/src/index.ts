@@ -5,12 +5,16 @@ import type { Job, Snapshot, Payment } from "@switchboard/shared";
 const connectionString =
   process.env.DATABASE_URL ??
   "postgres://switchboard:switchboard@localhost:5432/switchboard";
+// Vercel reaches Render Postgres over its external endpoint, which requires TLS.
+const hostedConnectionOptions = process.env.VERCEL === "1" ? { ssl: true } : {};
 export const sql = postgres(connectionString, {
+  ...hostedConnectionOptions,
   transform: postgres.camel,
   max: 10,
 });
 // A distinct pool prevents reserved advisory-lock sessions from exhausting the query pool.
 export const paymentLocks = postgres(connectionString, {
+  ...hostedConnectionOptions,
   max: 4,
   idle_timeout: 20,
 });

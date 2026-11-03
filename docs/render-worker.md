@@ -45,4 +45,6 @@ Open `https://<assigned-worker-host>/health`. The expected response while all se
 
 The worker is not a replacement for the Vercel frontend. Leave HOSTED_UI_ONLY=1 on Vercel until its database, worker URL, shared session secret, and remaining required environment variables have been configured and verified. Use the database's External Database URL on Vercel; its Internal URL is only for Render services on the same private network.
 
+The database client requires TLS with certificate validation when running on Vercel (`VERCEL=1`), because Render's external Postgres endpoint requires encryption. Render's internal connection and local development keep their existing connection settings.
+
 After the worker is healthy, follow `docs/paypal-sandbox.md` to register `/webhooks/paypal` in the existing sandbox REST app. Add the PayPal credentials and webhook ID to the worker before disabling MOCK_PAYPAL. Continue keeping telephony, LLM, and directory mocks enabled while checking PayPal alone.
