@@ -16,6 +16,7 @@ export function loadEnv(
   const normalized = {
     ...source,
     PAYPAL_ENV: source.PAYPAL_ENV ?? "sandbox",
+    PUBLIC_WORKER_URL: source.PUBLIC_WORKER_URL ?? source.RENDER_EXTERNAL_URL,
   };
   assertSandboxMode(normalized);
   const env = z

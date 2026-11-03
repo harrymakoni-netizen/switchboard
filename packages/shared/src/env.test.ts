@@ -37,4 +37,19 @@ describe("startup safety", () => {
     ).toBe("custom-gemini-model");
     expect(() => loadEnv({ ...env, GEMINI_MODEL: " " })).toThrow();
   });
+  it("uses the Render-assigned URL when a worker URL is not configured", () => {
+    expect(
+      loadEnv({
+        ...env,
+        PUBLIC_WORKER_URL: undefined,
+        RENDER_EXTERNAL_URL: "https://switchboard-worker.onrender.com",
+      }).PUBLIC_WORKER_URL,
+    ).toBe("https://switchboard-worker.onrender.com");
+  });
+  it("keeps an explicitly configured worker URL", () => {
+    expect(
+      loadEnv({ ...env, RENDER_EXTERNAL_URL: "https://other.onrender.com" })
+        .PUBLIC_WORKER_URL,
+    ).toBe(env.PUBLIC_WORKER_URL);
+  });
 });

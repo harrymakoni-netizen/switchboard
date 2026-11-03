@@ -35,3 +35,5 @@
 
 - The current AI SDK and Google provider require Node >=22. Pin this project to Node 24, matching the existing Vercel project and the runtime used for verification.
 - Gemini migration verification: lint, strict typecheck, production build, 105 unit/integration tests, and six mock browser scenarios pass. Database tests ran against the configured local Postgres service on 5433 via an explicit DATABASE_URL; the separately reviewed fallback-port issue was not changed in this migration. No live Google requests were made.
+
+- Render worker deployment uses a Web Service with /health and a separate pre-deploy migration command. PUBLIC_WORKER_URL falls back to Render's trusted RENDER_EXTERNAL_URL when unset, avoiding a first-deployment URL configuration loop. Explicit worker URL overrides are preserved.
