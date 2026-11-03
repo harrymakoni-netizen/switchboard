@@ -3,6 +3,7 @@ import { z } from "zod";
 import { sql, createJob, snapshot } from "@switchboard/db";
 import { transition, showPayoutEmail } from "@switchboard/engine";
 import { MockLLM, GeminiLLM, plan } from "@switchboard/agents";
+import { receiptUrl } from "@switchboard/paypal";
 import { ownJob, runtime, session } from "../../../lib/server";
 export const dynamic = "force-dynamic";
 type Context = { params: { segments?: string[] } };
@@ -52,6 +53,31 @@ async function handle(req: NextRequest, { params }: Context) {
       const invoice = data.payments.find((p) => p.kind === "invoice");
       if (!invoice)
         return new Response("Receipt is still being prepared", { status: 404 });
+      if (invoice.status === "NEEDS_REVIEW")
+        return new Response(
+          "Receipt needs review. Your payment has not been changed.",
+          { status: 409 },
+        );
+      if (invoice.status !== "PAID")
+        return new Response("Receipt is still being prepared", { status: 202 });
+      const receipt = z
+        .object({
+          mock: z.boolean().optional(),
+          verified: z.boolean().optional(),
+          invoiceUrl: z.string().optional(),
+        })
+        .parse(invoice.raw);
+      if (!receipt.mock && !receipt.verified)
+        return new Response("Receipt has not been verified", { status: 409 });
+      const hostedReceipt = !receipt.mock
+        ? receiptUrl(receipt.invoiceUrl)
+        : undefined;
+      if (hostedReceipt) {
+        const response = NextResponse.redirect(hostedReceipt);
+        response.headers.set("cache-control", "no-store");
+        response.headers.set("referrer-policy", "no-referrer");
+        return response;
+      }
       const escape = (v: string) =>
         v
           .replaceAll("&", "&amp;")
@@ -59,7 +85,7 @@ async function handle(req: NextRequest, { params }: Context) {
           .replaceAll(">", "&gt;")
           .replaceAll('\"', "&quot;");
       return new Response(
-        `<!doctype html><html lang="en"><title>Switchboard receipt</title><body style="font-family:Arial;padding:40px;max-width:700px;margin:auto"><h1>Switchboard receipt</h1><p>MOCK · PayPal sandbox · No real money moved</p><hr><p>${escape(job.brief?.task ?? "Home repair")}</p><p>Amount: $${((invoice.amountCents ?? 0) / 100).toFixed(2)} USD</p><p>Status: ${escape(invoice.status)}</p><p>Invoice: ${escape(invoice.paypalId ?? "")}</p><p>Job: ${escape(id)}</p></body></html>`,
+        `<!doctype html><html lang="en"><title>Switchboard receipt</title><body style="font-family:Arial;padding:40px;max-width:700px;margin:auto"><h1>Switchboard receipt</h1><p>${receipt.mock ? "MOCK · " : "Verified receipt · "}PayPal sandbox · No real money moved</p><hr><p>${escape(job.brief?.task ?? "Home repair")}</p><p>Amount: $${((invoice.amountCents ?? 0) / 100).toFixed(2)} USD</p><p>Status: ${escape(invoice.status)}</p><p>Invoice: ${escape(invoice.paypalId ?? "")}</p><p>Job: ${escape(id)}</p></body></html>`,
         {
           headers: {
             "content-type": "text/html; charset=utf-8",

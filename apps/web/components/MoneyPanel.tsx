@@ -61,14 +61,22 @@ export function MoneyPanel({
         </div>
         {invoice && (
           <p className="small">
-            <a
-              href={"/api/jobs/" + invoice.jobId + "/receipt"}
-              target="_blank"
-              rel="noreferrer"
-            >
-              View receipt
-            </a>{" "}
-            · {invoice.status}
+            {invoice.status === "PAID" ? (
+              <a
+                href={"/api/jobs/" + invoice.jobId + "/receipt"}
+                target="_blank"
+                rel="noreferrer"
+              >
+                View receipt
+              </a>
+            ) : (
+              <span role="status">
+                {invoice.status === "NEEDS_REVIEW"
+                  ? "Receipt needs review"
+                  : "Preparing receipt…"}
+              </span>
+            )}{" "}
+            {invoice.status === "PAID" && "· PAID"}
             <span className="ledger-id">{invoice.paypalId}</span>
           </p>
         )}

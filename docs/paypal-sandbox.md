@@ -2,7 +2,7 @@
 
 Implemented: Orders v2 authorization checkout, Payments v2 capture/void/reauthorize, Payouts v1, verified webhooks, durable webhook processing, item-level settlement polling, and a resumable smoke runner. Provider requests are sandbox-only. All payment execution remains in `packages/engine`.
 
-**Verification status:** lint, strict typechecking, production build, 92 unit/integration tests (including HTTP contracts and Postgres reconciliation), and all six mock browser scenarios pass. No request has been tested against PayPal with real sandbox credentials. The user chose to configure credentials later. The invoice-only PayPal Agent Toolkit receipt agent is a separate remaining integration; real mode never fabricates a receipt.
+**Verification status:** hosted sandbox order creation and real Gemini planning/extraction have passed. The user reported a completed sandbox capture and payout. The invoice-only PayPal Agent Toolkit receipt agent is implemented, with independent provider verification and persistent recovery; see [receipt verification limits](paypal-receipts.md). Real mode never fabricates an invoice.
 
 ## Configure later
 
@@ -20,7 +20,7 @@ PAYPAL_WEBHOOK_ID=<sandbox webhook ID>
 
 Keep `MOCK_TELEPHONY=1 MOCK_LLM=1 MOCK_PARTNERS=1 DEMO_MODE=1` while testing this integration alone. Configure `TENDAI_PAYOUT_EMAIL` and `QUICKFIX_PAYOUT_EMAIL` to actual sandbox personal account emails before booking demo bots with sandbox payouts. The committed example.com addresses are placeholders, not recipient accounts.
 
-The app still needs a reachable Postgres database and worker. The Vercel web project currently has `HOSTED_UI_ONLY=1`; leave that enabled until its backend has been provisioned. Credentials in Vercel alone do not start a background worker. The worker must use a direct or session-pooled Postgres connection that supports LISTEN/NOTIFY and session advisory locks, not a transaction-pooler URL. The worker and web must reach the same database and share SESSION_SECRET, with APP_URL pointing to the app and PUBLIC_WORKER_URL to the worker.
+The hosted database and Render worker are now provisioned, with booking enabled on Vercel production. Credentials in Vercel alone do not start a background worker. The worker must use a direct or session-pooled Postgres connection that supports LISTEN/NOTIFY and session advisory locks, not a transaction-pooler URL. The worker and web must reach the same database and share SESSION_SECRET, with APP_URL pointing to the app and PUBLIC_WORKER_URL to the worker. Keep previews interface-only until they have their own backend configuration.
 
 ## Register the webhook
 

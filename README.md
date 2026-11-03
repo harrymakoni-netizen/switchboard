@@ -2,7 +2,7 @@
 
 A buyer’s assistant for arranging a home repair: one brief, parallel quote calls, a live comparison board, and two explicit payment approvals.
 
-**Current build: M0–M6 offline mock demo.** No real phone calls or money transfers occur. M7 real-service integrations and M8 hosting have not passed; the current Vercel web deployment is interface-only until a hosted database and worker are connected. Source: https://github.com/harrymakoni-netizen/switchboard. There is no real-service judge login yet. See [MILESTONES.md](MILESTONES.md).
+**Current build: hosted sandbox demo with PayPal and Gemini enabled.** Open https://switchboard-hjm-technologies.vercel.app. The worker runs on Render with Postgres; calls and business discovery remain simulated. PayPal uses sandbox funds only. The offline mock demo remains available without service keys. M7 is partially integrated; real calling, discovery, and final judge acceptance remain unfinished. Source: https://github.com/harrymakoni-netizen/switchboard. See [MILESTONES.md](MILESTONES.md).
 
 ## Run locally
 
@@ -13,11 +13,13 @@ cp .env.example .env
 pnpm install
 # Starts local PostgreSQL with development-only credentials.
 docker compose up -d --wait
-pnpm db:migrate
+pnpm exec tsx --env-file=.env packages/db/src/migrate.ts
 pnpm dev
 ```
 
 Open **http://localhost:3000**. The worker listens on port 4000. Keep all `MOCK_*` flags at `1` and `PAYPAL_ENV=sandbox`. Change `SESSION_SECRET` before any hosting. Web configuration loads the root `.env`; worker dev startup uses `--env-file=.env`. PostgreSQL is required in mock mode; no external service keys are needed.
+
+The Docker Compose database is exposed on port **5433**. Set DATABASE_URL in `.env` to that local port before migrating and starting the app. Standalone test commands need DATABASE_URL exported in their environment.
 
 Try **“Fix Mum’s geyser in Avondale tomorrow, under $120”**:
 
@@ -49,8 +51,8 @@ The e2e command starts the production web server and worker, so run `pnpm build`
 - `apps/worker`: Fastify and pg-boss. Dispatches committed outbox effects, mock calls, booking confirmations, delayed slots, capture/payout/void, polling, receipts, and reauthorization.
 - `packages/engine`: strict state graph and guards. Transitions lock the job row in a transaction and atomically write state, events, and durable side-effect intents. Payment execution lives exclusively in `packages/engine/src/money.ts` and runs after commit; the worker only schedules these engine operations.
 - `packages/db`: Drizzle schema, SQL migration, queries, payment ledger, and Postgres LISTEN/NOTIFY.
-- `packages/paypal`: sandbox-only REST adapter, mock stateful adapter, webhook-verification/deduplication helper, and polling methods. Verified webhooks now feed durable engine tasks; sandbox account verification is still pending.
-- `packages/agents`: Gemini adapter through the Vercel AI SDK with native structured JSON, zod validation, and one output-validation retry, deterministic mock planner/extractor, finder schema, and untrusted-data prompts. These agents have no payment tools.
+- `packages/paypal`: sandbox-only REST adapter, mock stateful adapter, verified webhook inbox, polling, capture/order checks, and independent invoice verification.
+- `packages/agents`: Gemini structured JSON with strict validation and a transient-error model fallback, deterministic mock planner/extractor, finder schema, and an invoice-only receipt agent. The receipt agent adapts PayPal Agent Toolkit's older tool interface to the installed AI SDK's ToolLoopAgent. Agents cannot authorize, capture, void, refund, or pay out funds.
 - `packages/calls` / `packages/bots`: typed telephony boundary, AI disclosure, bounded concurrent mock conversations, SMS templates, and three synthetic bot personas.
 
 All code is newly written from the supplied scope. No RollCall source was provided or reused. No stretch features have been implemented. The API uses a Next.js optional catch-all implementation while exposing the specified URLs; PayPal return/cancel handlers are separate routes.
@@ -69,11 +71,11 @@ All code is newly written from the supplied scope. No RollCall source was provid
 
 The environment has no configured provider credentials. **Keep mock mode enabled.** The worker deliberately refuses real telephony rather than silently substituting mock calls.
 
-Remaining implementation and verification: Twilio outbound calls, signature-validated webhooks and media bridge; selected realtime voice provider; real bot phone numbers; Kernel discovery; invoice-only PayPal Agent Toolkit receipt flow; and a manual end-to-end run that matches the sandbox ledger. The sandbox REST methods and Gemini JSON adapter exist but have not been exercised with live credentials.
+Remaining implementation and verification: Twilio outbound calls, signature-validated telephony webhooks and media bridge; selected realtime voice provider; real bot phone numbers; Kernel discovery; and final end-to-end judge acceptance. Hosted PayPal order creation and Gemini planning/extraction have been exercised with real provider credentials; the user reported successful sandbox capture and payout. See [receipt implementation and verification limits](docs/paypal-receipts.md).
 
 Configure the variables listed in `.env.example` through environment secrets. For PayPal, create a sandbox business account and REST app with Payouts, a sandbox personal buyer, and personal recipient accounts for the two accepting bots. Set `TENDAI_PAYOUT_EMAIL` and `QUICKFIX_PAYOUT_EMAIL` to those sandbox recipient emails. Demo `example.com` addresses must be replaced before real sandbox runs.
 
-The scope gates deployment on M7. Render provisioning, `render.yaml`, hosted judge acceptance, the final Postman collection, and full hosted acceptance remain M8 work. The Twilio worker must be a Render **web service** for public HTTPS/WSS callbacks.
+The user authorized hosting before M7 completion. Render provisioning is complete; `render.yaml`, the final Postman collection, and full hosted judge acceptance remain M8 work. The worker is a Render **web service** for public HTTPS/WSS callbacks.
 
 ## Design
 
@@ -81,32 +83,33 @@ Public Sans is self-hosted under `apps/web/public/fonts` with its OFL license. T
 
 ## Vercel deployment
 
-Project: `switchboard`, team: `hjm-technologies`. Production alias: https://switchboard-hjm-technologies.vercel.app. The project keeps the team’s default Vercel Authentication protection.
+Project: `switchboard`, team: `hjm-technologies`. Production alias: https://switchboard-hjm-technologies.vercel.app. Production is publicly accessible; preview deployments retain Vercel Authentication protection.
 
 Root directory: `apps/web`. Install: `cd ../.. && pnpm install --frozen-lockfile`. Build: `pnpm build`. Node: 24.x for the initial deployment. The monorepo source outside the root directory must be included.
 
-The hosted web deployment has `HOSTED_UI_ONLY=1`: it visibly disables booking and returns HTTP 503 from the API. The database and pg-boss worker must be hosted and configured before removing that flag. Do not set DATABASE_URL or PUBLIC_WORKER_URL to localhost on Vercel. The current long-running worker cannot be assumed to keep running between Vercel Function requests; use a suitable persistent worker host or adapt its queue execution before enabling online booking.
+Production has `HOSTED_UI_ONLY=0` and connects to the persistent Render worker at https://switchboard-worker-1naa.onrender.com. Preview remains interface-only. Do not set DATABASE_URL or PUBLIC_WORKER_URL to localhost on Vercel. Vercel uses Render's external Postgres URL with TLS; Render uses the database's internal URL. Both services share SESSION_SECRET. See [worker deployment](docs/render-worker.md).
 
-Keep `PAYPAL_ENV=sandbox`, `DEMO_MODE=1`, and all MOCK flags at `1`. Configure `DATABASE_URL`, `PUBLIC_WORKER_URL`, `APP_URL`, and a newly generated `SESSION_SECRET` in both server environments. Run migrations against the dedicated hosted database before enabling requests.
+Production keeps `PAYPAL_ENV=sandbox`, `DEMO_MODE=1`, `MOCK_TELEPHONY=1`, and `MOCK_PARTNERS=1`; PayPal and Gemini are enabled separately with `MOCK_PAYPAL=0` and `MOCK_LLM=0`. Do not copy production configuration into local offline tests.
 
 Repository source is pushed to `main`. The initial project was deployed from inline source; repository-based deployments are supported and verified separately. Automatic deployment on every push still requires connecting this repository under the existing Vercel project’s Settings → Git.
 
 ## Integration 1: PayPal payments
 
-Payment and webhook code is implemented and tested offline. Sandbox credentials and actual provider verification are intentionally deferred, as requested. See [PayPal setup, smoke commands, and acceptance checks](docs/paypal-sandbox.md). The receipt-agent integration remains separate; M7 has not passed.
+Sandbox checkout, authorization, capture, void, payouts, verified webhooks, and invoice receipts are implemented. See [PayPal setup and acceptance checks](docs/paypal-sandbox.md) and [receipt recovery and verification](docs/paypal-receipts.md). M7 has not passed in full.
 
 ## Gemini configuration
 
-Gemini replaces the previous LLM provider for planning, quote extraction, and directory interpretation. The planned invoice-only receipt agent will also use Gemini through the AI SDK; that agent is still pending implementation. AI agents have no tools for authorization, capture, void, or payout.
+Gemini handles planning, quote extraction, directory interpretation, and the invoice-only receipt agent. AI agents have no tools for authorization, capture, void, refund, or payout.
 
 Mock mode (`MOCK_LLM=1`) needs no Google API key and makes no Gemini requests. When ready to test real AI calls, create a key at https://aistudio.google.com/apikey and set these variables in the web and worker environments:
 
 ```text
 GEMINI_API_KEY=<Google AI Studio API key>
-GEMINI_MODEL=gemini-3.8-flash
+GEMINI_MODEL=gemini-3.6-flash
+GEMINI_FALLBACK_MODEL=gemini-3.5-flash-lite
 MOCK_LLM=0
 ```
 
 The model is configurable; use a Gemini model available to your Google account. The default is the latest Flash text model listed by the model catalog and installed provider at the time of this change (2026-11-03), chosen for brief planning and extraction latency. This setup calls Google directly with the key supplied to `createGoogle`; it does not require an AI Gateway account. Old provider credentials are no longer used.
 
-Both the planner's brief/follow-up union and the finder's business array are sent as JSON schemas. Invalid output is rejected, with one validation retry; authentication and transport errors are not retried as formatting errors. Each provider request has a 30-second timeout. Tests exercise the actual Google provider with an in-process HTTP stub; live Google-account verification remains pending credentials.
+Both the planner's brief/follow-up union and the finder's business array are sent as JSON schemas. Invalid output is rejected, with one validation retry. Temporary HTTP 500/502/503/504 failures can switch once to the fallback model; authentication and quota errors do not. Structured-output calls have a 30-second timeout. Live hosted planning and quote extraction passed; offline tests exercise Google's provider with in-process HTTP stubs.

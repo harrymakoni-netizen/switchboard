@@ -19,6 +19,7 @@ import {
 } from "@switchboard/engine";
 import { MockPayPal, HttpPayPal } from "@switchboard/paypal";
 import { MockLLM, GeminiLLM, extract } from "@switchboard/agents";
+import { createReceiptAgent } from "../../../packages/agents/src/receipt";
 import {
   MockTelephony,
   parallelCalls,
@@ -226,7 +227,11 @@ async function completionCall(jobId: string) {
       "The slot has passed. Confirm completion in the app to release payment. No user phone number is collected in mock mode.",
   });
 }
-const money = createMoneyEngine({ paypal, env, enqueue, tel });
+const receiptAgent =
+  paypal instanceof HttpPayPal
+    ? createReceiptAgent({ provider: paypal })
+    : undefined;
+const money = createMoneyEngine({ paypal, env, enqueue, tel, receiptAgent });
 await money.restore();
 const handlers: Record<
   string,
@@ -260,6 +265,15 @@ for (const name of Object.keys(handlers)) {
       for (const j of jobs) await handlers[name](j.data.jobId, j.data.payload);
     },
   );
+}
+// Resume pre-existing sandbox captures whose receipt was unavailable before this integration.
+if (env.MOCK_PAYPAL === "0") {
+  const pendingReceipts =
+    await sql`select c.job_id from payments c join jobs j on j.id=c.job_id
+    left join payments i on i.job_id=c.job_id and i.kind='invoice'
+    where c.kind='capture' and c.status='COMPLETED' and c.paypal_id not like 'MOCK-%'
+    and j.approved_done_at is not null and (i.id is null or i.status='PENDING') limit 100`;
+  for (const row of pendingReceipts) await enqueue("receipt", row.jobId);
 }
 let dispatching = false;
 async function dispatch() {
@@ -301,6 +315,12 @@ await registerPayPalWebhook(app, (headers, body) =>
 app.get("/health", async () => ({
   ok: true,
   mode: env.MOCK_TELEPHONY === "1" ? "mock" : "sandbox",
+  revision: process.env.RENDER_GIT_COMMIT ?? "local",
+  providers: {
+    paypal: env.MOCK_PAYPAL === "1" ? "mock" : "sandbox",
+    llm: env.MOCK_LLM === "1" ? "mock" : "gemini",
+    receipts: receiptAgent ? "paypal-invoice" : "mock",
+  },
 }));
 app.addHook("preHandler", async (req, reply) => {
   if (

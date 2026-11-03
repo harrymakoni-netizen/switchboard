@@ -11,7 +11,14 @@ import {
   type Payment,
   type Quote,
 } from "@switchboard/shared";
-import { MockPayPal, PayPalHttpError, type PayPal } from "@switchboard/paypal";
+import {
+  MockPayPal,
+  PayPalHttpError,
+  ReceiptReviewError,
+  type PayPal,
+  type ReceiptAgent,
+  type ReceiptProgress,
+} from "@switchboard/paypal";
 import { smsTemplate, type Telephony } from "@switchboard/calls";
 import { transition, selected } from "./index";
 import { webhookSchema } from "../../paypal/src/webhooks";
@@ -22,11 +29,13 @@ export function createMoneyEngine({
   env,
   enqueue,
   tel,
+  receiptAgent,
 }: {
   paypal: PayPal;
   env: { APP_URL: string; MOCK_PAYPAL: string };
   enqueue: (name: string, jobId: string, startAfter?: Date) => Promise<void>;
   tel: Pick<Telephony, "sendSms">;
+  receiptAgent?: ReceiptAgent;
 }) {
   async function restore() {
     // Restore mock holds after a worker restart; the durable ledger is authoritative.
@@ -237,10 +246,96 @@ export function createMoneyEngine({
     else await enqueue("pollPayout", jobId, new Date(Date.now() + 60000));
   }
   async function receipt(jobId: string) {
-    if (await ledger(jobId, "invoice")) return;
+    const existing = await ledger(jobId, "invoice");
     const p = await ledger(jobId, "capture");
     if (p?.status !== "COMPLETED") return;
-    if (env.MOCK_PAYPAL !== "1") throw new Error("Receipt toolkit requires M7");
+    if (env.MOCK_PAYPAL !== "1") {
+      if (!p.paypalId || p.paypalId.startsWith("MOCK-")) return;
+      const saved = z
+        .object({
+          invoiceId: z.string(),
+          status: z.enum(["PENDING", "PAID", "NEEDS_REVIEW"]),
+          verified: z.boolean(),
+          notificationSent: z.boolean().optional(),
+        })
+        .safeParse(existing?.raw);
+      if (existing?.status === "PAID" && saved.success && saved.data.verified)
+        return;
+      if (existing?.status === "NEEDS_REVIEW") return;
+      if (!receiptAgent)
+        throw new Error("Sandbox receipt agent is not configured.");
+      const job = await getJob(jobId);
+      const order = await ledger(jobId, "order");
+      const quote = await selected(sql, job);
+      if (
+        !job.approvedDoneAt ||
+        !order?.paypalId ||
+        !p.amountCents ||
+        p.amountCents !== quote.priceCents
+      )
+        throw new Error(
+          "Receipt requires the approved, captured quote amount.",
+        );
+      let latest: ReceiptProgress | undefined = saved.success
+        ? saved.data
+        : undefined;
+      const checkpoint = async (progress: ReceiptProgress) => {
+        const row = await recordPayment({
+          jobId,
+          kind: "invoice",
+          paypalId: progress.invoiceId || null,
+          status: progress.status,
+          amountCents: p.amountCents,
+          requestId: jobId + ":invoice",
+          raw: {
+            ...progress,
+            captureId: p.paypalId,
+            totalCents: p.amountCents,
+            mock: false,
+          },
+        });
+        if (
+          row.paypalId &&
+          progress.invoiceId &&
+          row.paypalId !== progress.invoiceId
+        )
+          throw new Error("Receipt invoice identity changed.");
+        await sql`update payments set paypal_id=${progress.invoiceId || null},status=${progress.status},raw=${JSON.stringify({ ...progress, captureId: p.paypalId, totalCents: p.amountCents, mock: false })}::jsonb where id=${row.id}`;
+        latest = progress;
+        await emit(jobId, "payment.updated", {
+          kind: "invoice",
+          status: progress.status,
+          amountCents: p.amountCents,
+        });
+      };
+      if (!existing)
+        await checkpoint({ invoiceId: "", status: "PENDING", verified: false });
+      try {
+        await receiptAgent(
+          {
+            jobId,
+            orderId: order.paypalId,
+            captureId: p.paypalId,
+            amountCents: p.amountCents,
+            description: job.brief?.task ?? "Home repair",
+            businessName: quote.name,
+            includes: quote.includes,
+            saved: latest,
+          },
+          checkpoint,
+        );
+      } catch (error) {
+        if (!(error instanceof ReceiptReviewError)) throw error;
+        await checkpoint({
+          invoiceId: latest?.invoiceId ?? existing?.paypalId ?? "",
+          status: "NEEDS_REVIEW",
+          verified: false,
+          reason: error.message,
+        });
+      }
+      return;
+    }
+    if (existing) return;
     await recordPayment({
       jobId,
       kind: "invoice",
@@ -482,12 +577,8 @@ export function createMoneyEngine({
     if (type === "INVOICING.INVOICE.PAID") {
       const p = await ledger(jobId, "invoice");
       if (p) {
-        await sql`update payments set status='PAID' where id=${p.id}`;
-        await emit(jobId, "payment.updated", {
-          kind: "invoice",
-          status: "PAID",
-          amountCents: p.amountCents,
-        });
+        // A signed notification is not proof of this invoice's total or capture.
+        await enqueue("receipt", jobId);
       }
     }
   }

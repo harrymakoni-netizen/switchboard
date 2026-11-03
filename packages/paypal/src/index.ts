@@ -1,6 +1,13 @@
 import { randomUUID, timingSafeEqual } from "node:crypto";
 import { z } from "zod";
 import { fromCents, toCents, type Cents } from "@switchboard/shared";
+import {
+  readReceiptContext,
+  findInvoice,
+  getInvoice,
+  type ReceiptRequest,
+} from "./receipts";
+export * from "./receipts";
 export interface OrderArgs {
   jobId: string;
   amountCents: Cents;
@@ -226,6 +233,15 @@ const orderResponse = z.object({
   links: z.array(z.object({ rel: z.string(), href: z.string().url() })),
 });
 export class HttpPayPal implements PayPal {
+  receiptContext(request: ReceiptRequest) {
+    return readReceiptContext((...args) => this.request(...args), request);
+  }
+  findReceiptInvoice(number: string) {
+    return findInvoice((...args) => this.request(...args), number);
+  }
+  getReceiptInvoice(id: string) {
+    return getInvoice((...args) => this.request(...args), id);
+  }
   private token: string | null = null;
   private expiry = 0;
   constructor(
