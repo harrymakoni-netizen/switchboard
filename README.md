@@ -6,7 +6,7 @@ A buyer’s assistant for arranging a home repair: one brief, parallel quote cal
 
 ## Run locally
 
-Requires Node 20+, pnpm 11, Docker (or your own PostgreSQL 16).
+Requires Node 24, pnpm 11, Docker (or your own PostgreSQL 16).
 
 ```sh
 cp .env.example .env
@@ -50,7 +50,7 @@ The e2e command starts the production web server and worker, so run `pnpm build`
 - `packages/engine`: strict state graph and guards. Transitions lock the job row in a transaction and atomically write state, events, and durable side-effect intents. Payment execution lives exclusively in `packages/engine/src/money.ts` and runs after commit; the worker only schedules these engine operations.
 - `packages/db`: Drizzle schema, SQL migration, queries, payment ledger, and Postgres LISTEN/NOTIFY.
 - `packages/paypal`: sandbox-only REST adapter, mock stateful adapter, webhook-verification/deduplication helper, and polling methods. Verified webhooks now feed durable engine tasks; sandbox account verification is still pending.
-- `packages/agents`: Anthropic adapter with validated JSON and one retry, deterministic mock planner/extractor, finder schema, and untrusted-data prompts. These agents have no payment tools.
+- `packages/agents`: Gemini adapter through the Vercel AI SDK with native structured JSON, zod validation, and one output-validation retry, deterministic mock planner/extractor, finder schema, and untrusted-data prompts. These agents have no payment tools.
 - `packages/calls` / `packages/bots`: typed telephony boundary, AI disclosure, bounded concurrent mock conversations, SMS templates, and three synthetic bot personas.
 
 All code is newly written from the supplied scope. No RollCall source was provided or reused. No stretch features have been implemented. The API uses a Next.js optional catch-all implementation while exposing the specified URLs; PayPal return/cancel handlers are separate routes.
@@ -69,7 +69,7 @@ All code is newly written from the supplied scope. No RollCall source was provid
 
 The environment has no configured provider credentials. **Keep mock mode enabled.** The worker deliberately refuses real telephony rather than silently substituting mock calls.
 
-Remaining implementation and verification: Twilio outbound calls, signature-validated webhooks and media bridge; selected realtime voice provider; real bot phone numbers; Kernel discovery; invoice-only PayPal Agent Toolkit receipt flow; and a manual end-to-end run that matches the sandbox ledger. The sandbox REST methods and Anthropic JSON adapter exist but have not been exercised with live credentials.
+Remaining implementation and verification: Twilio outbound calls, signature-validated webhooks and media bridge; selected realtime voice provider; real bot phone numbers; Kernel discovery; invoice-only PayPal Agent Toolkit receipt flow; and a manual end-to-end run that matches the sandbox ledger. The sandbox REST methods and Gemini JSON adapter exist but have not been exercised with live credentials.
 
 Configure the variables listed in `.env.example` through environment secrets. For PayPal, create a sandbox business account and REST app with Payouts, a sandbox personal buyer, and personal recipient accounts for the two accepting bots. Set `TENDAI_PAYOUT_EMAIL` and `QUICKFIX_PAYOUT_EMAIL` to those sandbox recipient emails. Demo `example.com` addresses must be replaced before real sandbox runs.
 
@@ -94,3 +94,19 @@ Repository source is pushed to `main`. The initial project was deployed from inl
 ## Integration 1: PayPal payments
 
 Payment and webhook code is implemented and tested offline. Sandbox credentials and actual provider verification are intentionally deferred, as requested. See [PayPal setup, smoke commands, and acceptance checks](docs/paypal-sandbox.md). The receipt-agent integration remains separate; M7 has not passed.
+
+## Gemini configuration
+
+Gemini replaces the previous LLM provider for planning, quote extraction, and directory interpretation. The planned invoice-only receipt agent will also use Gemini through the AI SDK; that agent is still pending implementation. AI agents have no tools for authorization, capture, void, or payout.
+
+Mock mode (`MOCK_LLM=1`) needs no Google API key and makes no Gemini requests. When ready to test real AI calls, create a key at https://aistudio.google.com/apikey and set these variables in the web and worker environments:
+
+```text
+GEMINI_API_KEY=<Google AI Studio API key>
+GEMINI_MODEL=gemini-3.8-flash
+MOCK_LLM=0
+```
+
+The model is configurable; use a Gemini model available to your Google account. The default is the latest Flash text model listed by the model catalog and installed provider at the time of this change (2026-11-03), chosen for brief planning and extraction latency. This setup calls Google directly with the key supplied to `createGoogle`; it does not require an AI Gateway account. Old provider credentials are no longer used.
+
+Both the planner's brief/follow-up union and the finder's business array are sent as JSON schemas. Invalid output is rejected, with one validation retry; authentication and transport errors are not retried as formatting errors. Each provider request has a 30-second timeout. Tests exercise the actual Google provider with an in-process HTTP stub; live Google-account verification remains pending credentials.

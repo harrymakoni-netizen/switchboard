@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { sql, createJob, snapshot } from "@switchboard/db";
 import { transition, showPayoutEmail } from "@switchboard/engine";
-import { MockLLM, AnthropicLLM, plan } from "@switchboard/agents";
+import { MockLLM, GeminiLLM, plan } from "@switchboard/agents";
 import { ownJob, runtime, session } from "../../../lib/server";
 export const dynamic = "force-dynamic";
 type Context = { params: { segments?: string[] } };
@@ -21,8 +21,7 @@ async function handle(req: NextRequest, { params }: Context) {
       req.headers.get("origin") !== new URL(env.APP_URL).origin
     )
       return NextResponse.json({ error: "Invalid origin" }, { status: 403 });
-    const llm = () =>
-      env.MOCK_LLM === "1" ? new MockLLM() : new AnthropicLLM();
+    const llm = () => (env.MOCK_LLM === "1" ? new MockLLM() : new GeminiLLM());
     if (parts.join("/") === "jobs" && req.method === "POST") {
       const { request } = z
         .object({ request: z.string().min(5).max(2000) })

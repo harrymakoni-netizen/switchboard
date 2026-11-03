@@ -1,4 +1,5 @@
 import { z } from "zod";
+export const DEFAULT_GEMINI_MODEL = "gemini-3.8-flash";
 
 export function assertSandboxMode(
   source: Record<string, string | undefined> = process.env,
@@ -28,6 +29,7 @@ export function loadEnv(
       MOCK_PAYPAL: z.enum(["0", "1"]).default("0"),
       MOCK_TELEPHONY: z.enum(["0", "1"]).default("0"),
       MOCK_LLM: z.enum(["0", "1"]).default("0"),
+      GEMINI_MODEL: z.string().trim().min(1).default(DEFAULT_GEMINI_MODEL),
       MOCK_PARTNERS: z.enum(["0", "1"]).default("0"),
     })
     .parse(normalized);
@@ -44,7 +46,7 @@ export function loadEnv(
           "VOICE_API_KEY",
         ]
       : []),
-    ...(env.MOCK_LLM === "0" ? ["ANTHROPIC_API_KEY"] : []),
+    ...(env.MOCK_LLM === "0" ? ["GEMINI_API_KEY"] : []),
     ...(env.MOCK_PARTNERS === "0" && env.DEMO_MODE === "0"
       ? ["KERNEL_API_KEY", "DIRECTORY_URL_TEMPLATE"]
       : []),

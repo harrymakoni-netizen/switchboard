@@ -1,4 +1,3 @@
-import Anthropic from "@anthropic-ai/sdk";
 import { z } from "zod";
 import { briefSchema, type JobBrief, toCents } from "@switchboard/shared";
 export interface LLM {
@@ -9,44 +8,7 @@ export interface LLM {
     maxTokens?: number;
   }): Promise<T>;
 }
-export class AnthropicLLM implements LLM {
-  private client = new Anthropic();
-  async json<T>(a: {
-    system: string;
-    user: string;
-    schema: z.ZodType<T>;
-    maxTokens?: number;
-  }): Promise<T> {
-    let failure: unknown;
-    for (let attempt = 0; attempt < 2; attempt++) {
-      const result = await this.client.messages.create({
-        model: process.env.ANTHROPIC_MODEL ?? "claude-sonnet-5-5",
-        max_tokens: a.maxTokens ?? 1500,
-        system: a.system + " Return valid JSON only, without markdown.",
-        messages: [
-          {
-            role: "user",
-            content:
-              a.user +
-              (attempt
-                ? "\nThe prior output failed validation. Return the required schema exactly."
-                : ""),
-          },
-        ],
-      });
-      try {
-        const raw = result.content
-          .filter((c) => c.type === "text")
-          .map((c) => c.text)
-          .join("");
-        return a.schema.parse(JSON.parse(raw));
-      } catch (e) {
-        failure = e;
-      }
-    }
-    throw failure;
-  }
-}
+export { GeminiLLM } from "./gemini";
 export const extractionSchema = z.object({
   price_cents: z.number().int().nonnegative().nullable(),
   currency: z.literal("USD"),
@@ -212,7 +174,7 @@ export async function extract(llm: LLM, partyLines: string) {
 
 export const foundBusinessSchema = z.object({
   name: z.string().min(1),
-  phone: z.string().regex(/^\\+[1-9]\\d{7,14}$/),
+  phone: z.string().regex(/^\+[1-9]\d{7,14}$/),
   rating: z.number().min(0).max(5).nullable(),
   sourceUrl: z.string().url().nullable(),
 });

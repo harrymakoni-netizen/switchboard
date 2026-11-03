@@ -18,7 +18,7 @@ import {
   receivePayPalWebhook,
 } from "@switchboard/engine";
 import { MockPayPal, HttpPayPal } from "@switchboard/paypal";
-import { MockLLM, AnthropicLLM, extract } from "@switchboard/agents";
+import { MockLLM, GeminiLLM, extract } from "@switchboard/agents";
 import {
   MockTelephony,
   parallelCalls,
@@ -39,7 +39,7 @@ const paypal =
         process.env.PAYPAL_CLIENT_SECRET!,
         process.env.PAYPAL_WEBHOOK_ID!,
       );
-const llm = env.MOCK_LLM === "1" ? new MockLLM() : new AnthropicLLM();
+const llm = env.MOCK_LLM === "1" ? new MockLLM() : new GeminiLLM();
 const tel = new MockTelephony();
 const boss = new PgBoss(env.DATABASE_URL);
 await boss.start();

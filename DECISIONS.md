@@ -27,3 +27,11 @@
 - Provider execution and webhook reconciliation use a per-job session advisory lock. Committed ledger rows are reused on retry, including recovery between an authorization/payout ledger write and its state transition.
 - The standalone sandbox smoke fixture is fixed at $1.00 per leg, requires the buyer to approve both orders, and requires a separate --confirm-done flag before capture. Payout requires an explicitly configured sandbox recipient. Smoke money execution stays in the engine package.
 - The PayPal invoice-only Agent Toolkit remains the next payment-related integration; real mode does not fabricate a receipt.
+
+- On 2026-11-03 the user explicitly replaced Anthropic with Google Gemini. This supersedes the original provider choice in the scope. Web and worker use GeminiLLM with the existing LLM interface; all mock flows remain available without a key.
+- Use `ai` + `@ai-sdk/google` with `createGoogle` and schema-backed `Output.object`. Direct Google access uses GEMINI_API_KEY and avoids adding another gateway credential. The pending PayPal receipt-agent design uses the same Google provider.
+- Default GEMINI_MODEL to gemini-3.8-flash, verified in the current model catalog and the installed Google provider's supported IDs. Flash suits the latency and cost of brief planning and quote extraction; operators can override the model for their account.
+- The migration also corrects the finder's E.164 regex so valid directory phone numbers pass its schema. Gemini transport tests cover brief/follow-up unions, quote nulls, business arrays, schema retries, and provider failure handling without network calls.
+
+- The current AI SDK and Google provider require Node >=22. Pin this project to Node 24, matching the existing Vercel project and the runtime used for verification.
+- Gemini migration verification: lint, strict typecheck, production build, 105 unit/integration tests, and six mock browser scenarios pass. Database tests ran against the configured local Postgres service on 5433 via an explicit DATABASE_URL; the separately reviewed fallback-port issue was not changed in this migration. No live Google requests were made.

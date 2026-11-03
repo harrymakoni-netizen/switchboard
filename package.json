@@ -27,12 +27,16 @@
     "vitest": "^3.2.0"
   },
   "dependencies": {
-    "@anthropic-ai/sdk": "^1.3.0",
+    "@ai-sdk/google": "^4.0.109",
+    "ai": "^7.0.159",
     "dotenv": "^16.4.0",
     "drizzle-kit": "^0.31.0",
     "drizzle-orm": "^0.44.0",
     "pg-boss": "^10.3.0",
     "postgres": "^3.4.5",
     "zod": "^3.24.0"
+  },
+  "engines": {
+    "node": "24.x"
   }
 }

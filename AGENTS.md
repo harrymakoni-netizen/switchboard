@@ -74,13 +74,13 @@ Real-money payments, inbound customer calls, more than one job category, user ac
 
 | Concern | Choice |
 |---|---|
-| Monorepo | pnpm workspaces, Node 20+, TypeScript strict |
+| Monorepo | pnpm workspaces, Node 24, TypeScript strict |
 | Web | Next.js 14+ App Router, React 18, Tailwind CSS |
 | Grid | `ag-grid-community` + `ag-grid-react` (community edition only) |
 | Worker | Node process (`tsx` in dev), Fastify for webhooks and WebSockets |
 | DB | Postgres 16, Drizzle ORM + drizzle-kit migrations |
 | Jobs/timers | `pg-boss` (Postgres-backed queue): delayed jobs for reauthorize and completion calls |
-| LLM | Anthropic API (`@anthropic-ai/sdk`). Model from `ANTHROPIC_MODEL`, default `claude-sonnet-5-5`. |
+| LLM | Google Gemini through Vercel AI SDK (`ai` + `@ai-sdk/google`). Model from `GEMINI_MODEL`, default `gemini-3.8-flash`. |
 | Voice | Twilio Programmable Voice + Media Streams, bridged to a realtime speech-to-speech model behind a `VoiceSession` interface (section 8.2). Provider from `VOICE_PROVIDER`. |
 | SMS | Twilio Messaging |
 | Browser automation | Kernel (`@onkernel/sdk`) + `playwright-core` via CDP |
@@ -369,7 +369,7 @@ export interface LLM {
   json<T>(args: { system: string; user: string; schema: z.ZodType<T>; maxTokens?: number }): Promise<T>;
 }
 ```
-- `AnthropicLLM`: calls the Messages API, asks for JSON only, parses, validates with zod, retries once on validation failure.
+- `GeminiLLM`: calls Gemini through `generateText` with `Output.object`, validates against the supplied zod schema, and retries once on output-validation failure. Uses `GEMINI_API_KEY`; model from `GEMINI_MODEL`.
 - `MockLLM` (`MOCK_LLM=1`): deterministic outputs keyed by prompt name (`planner`, `finder`, `extractor`, `receipt`) from `packages/agents/mocks/*.json`.
 
 | Agent | Input | Output | Tools |
@@ -671,7 +671,7 @@ const toolkit = new PayPalAgentToolkit({
   },
 });
 ```
-The receipt agent (Claude via the Vercel AI SDK with `toolkit.getTools()`) receives the capture id, amount, brief, quote and business, and must: create an invoice to the buyer with line items from the quote (labour, parts if known) summing exactly to the captured amount, record the payment against it, and send it. Afterwards, the code (not the agent) re-reads the invoice and checks the total equals the captured amount; on mismatch it logs and shows "receipt needs review". Only invoice tools are enabled, so the agent cannot move money. Mock mode: skip the toolkit and write a fake invoice row.
+The receipt agent (Gemini via the Vercel AI SDK with `toolkit.getTools()`) receives the capture id, amount, brief, quote and business, and must: create an invoice to the buyer with line items from the quote (labour, parts if known) summing exactly to the captured amount, record the payment against it, and send it. Afterwards, the code (not the agent) re-reads the invoice and checks the total equals the captured amount; on mismatch it logs and shows "receipt needs review". Only invoice tools are enabled, so the agent cannot move money. Mock mode: skip the toolkit and write a fake invoice row.
 
 ---
 
@@ -728,8 +728,8 @@ PAYPAL_CLIENT_SECRET=
 PAYPAL_WEBHOOK_ID=
 
 # AI
-ANTHROPIC_API_KEY=
-ANTHROPIC_MODEL=claude-sonnet-5-5
+GEMINI_API_KEY=
+GEMINI_MODEL=gemini-3.8-flash
 VOICE_PROVIDER=
 VOICE_API_KEY=
 
