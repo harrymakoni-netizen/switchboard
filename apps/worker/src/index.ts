@@ -20,18 +20,26 @@ import {
 import { MockPayPal, HttpPayPal } from "@switchboard/paypal";
 import { MockLLM, GeminiLLM, extract } from "@switchboard/agents";
 import { createReceiptAgent } from "../../../packages/agents/src/receipt";
+import { registerTwilioWebhooks } from "./webhooks/twilio";
+import {
+  handleVoiceTurn,
+  handleVoiceStatus,
+  realConversation,
+  reserveConfirmationCall,
+} from "./voice";
+import {
+  TwilioTelephony,
+  twilioConfig,
+} from "../../../packages/calls/src/twilio";
 import {
   MockTelephony,
   parallelCalls,
   script,
   smsTemplate,
+  businessHours,
 } from "@switchboard/calls";
 import { bots } from "@switchboard/bots";
 const env = loadEnv();
-if (env.MOCK_TELEPHONY !== "1")
-  throw new Error(
-    "Real telephony is not enabled in this M6 build. Keep MOCK_TELEPHONY=1 until M7 is implemented and verified.",
-  );
 const paypal =
   env.MOCK_PAYPAL === "1"
     ? new MockPayPal()
@@ -41,7 +49,47 @@ const paypal =
         process.env.PAYPAL_WEBHOOK_ID!,
       );
 const llm = env.MOCK_LLM === "1" ? new MockLLM() : new GeminiLLM();
-const tel = new MockTelephony();
+const mockTel = new MockTelephony();
+const configuredTwilio =
+  process.env.TWILIO_ACCOUNT_SID &&
+  process.env.TWILIO_AUTH_TOKEN &&
+  process.env.TWILIO_FROM_NUMBER &&
+  process.env.TWILIO_ALLOWED_NUMBERS
+    ? new TwilioTelephony(twilioConfig(process.env), undefined, () =>
+        console.info("Custom SMS skipped on the limited Twilio trial."),
+      )
+    : undefined;
+if (env.MOCK_TELEPHONY === "0") {
+  if (!configuredTwilio)
+    throw new Error("Configure Twilio before enabling real calls.");
+  if (
+    configuredTwilio.config.mode === "trial" &&
+    process.env.TWILIO_TRIAL_CUSTOM_VOICE_VERIFIED !== "1"
+  )
+    throw new Error(
+      "Keep MOCK_TELEPHONY=1 until a custom Twilio trial call is verified.",
+    );
+  if (env.DEMO_MODE === "1") {
+    const numbers = [
+      process.env.TENDAI_PHONE_NUMBER,
+      process.env.QUICKFIX_PHONE_NUMBER,
+      process.env.AVONDALE_PHONE_NUMBER,
+    ];
+    if (
+      new Set(numbers).size !== 3 ||
+      numbers.some(
+        (n) =>
+          !n ||
+          !configuredTwilio.config.allowedNumbers.includes(n) ||
+          n === configuredTwilio.config.fromNumber,
+      )
+    )
+      throw new Error(
+        "Real demo calls require three distinct, configured verified recipient numbers.",
+      );
+  }
+}
+const tel = env.MOCK_TELEPHONY === "1" ? mockTel : configuredTwilio!;
 const boss = new PgBoss(env.DATABASE_URL);
 await boss.start();
 async function runFinding(jobId: string) {
@@ -55,7 +103,7 @@ async function runFinding(jobId: string) {
     if (existing.length) continue;
     const [b] = await sql<
       Business[]
-    >`insert into businesses(job_id,name,phone,rating,is_bot) values(${jobId},${bot.name},${bot.phone},${bot.rating},true) returning *,rating::float8 as rating`;
+    >`insert into businesses(job_id,name,phone,rating,is_bot) values(${jobId},${bot.name},${bot.phone},${env.MOCK_TELEPHONY === "1" ? bot.rating : null},${env.MOCK_TELEPHONY === "1"}) returning *,rating::float8 as rating`;
     await emit(jobId, "business.found", b);
   }
   const [count] =
@@ -71,50 +119,94 @@ async function runCalls(jobId: string) {
   const personas = bots(job.brief);
   await parallelCalls(
     businesses.map((b) => async (signal) => {
-      const [call] = await sql<
+      let [call] = await sql<
         Call[]
       >`insert into calls(job_id,business_id,purpose) values(${jobId},${b.id},'quote') on conflict do nothing returning *`;
-      if (!call) return;
+      if (!call) {
+        [call] = await sql<
+          Call[]
+        >`select * from calls where job_id=${jobId} and business_id=${b.id} and purpose='quote'`;
+        const [quote] =
+          await sql`select id from quotes where call_id=${call.id}`;
+        if (quote) return;
+      }
       const bot = personas.find((p) => p.name === b.name);
       if (!bot) throw new Error("Unknown mock bot");
       try {
-        await tel.conversation(
-          {
-            callId: call.id,
-            to: b.phone,
-            script: script("quote", job.brief!.task),
-          },
-          bot.lines,
-          async (event) => {
-            if (event.type === "status") {
-              await sql`update calls set status=${event.status},started_at=coalesce(started_at,now()),ended_at=case when ${event.status}='completed' then now() else ended_at end where id=${call.id}`;
-              await emit(jobId, "call.status", {
-                callId: call.id,
-                businessId: b.id,
-                purpose: "quote",
-                status: event.status,
-              });
-            } else {
-              await sql`update calls set transcript=transcript||${JSON.stringify([event.line])}::jsonb where id=${call.id}`;
-              await emit(jobId, "transcript.line", {
-                callId: call.id,
-                ...event.line,
-              });
-            }
-          },
-          550,
-          signal,
-        );
+        if (env.MOCK_TELEPHONY === "0") {
+          if (env.DEMO_MODE !== "1" && !businessHours()) {
+            await sql`update calls set status='declined',ended_at=now() where id=${call.id}`;
+            await emit(jobId, "call.status", {
+              callId: call.id,
+              businessId: b.id,
+              purpose: "quote",
+              status: "declined",
+            });
+            return;
+          }
+          await realConversation(
+            configuredTwilio!,
+            call.id,
+            b.phone,
+            {
+              purpose: "quote",
+              task: job.brief!.task.slice(0, 500),
+              location: job.brief!.location.slice(0, 300),
+              window: `${job.brief!.windowStart} to ${job.brief!.windowEnd}`,
+              maxSeconds: 180,
+            },
+            signal,
+          );
+        } else if (!["completed", "declined"].includes(call.status))
+          await mockTel.conversation(
+            {
+              callId: call.id,
+              to: b.phone,
+              script: script("quote", job.brief!.task),
+            },
+            bot.lines,
+            async (event) => {
+              if (event.type === "status") {
+                await sql`update calls set status=${event.status},started_at=coalesce(started_at,now()),ended_at=case when ${event.status}='completed' then now() else ended_at end where id=${call.id}`;
+                await emit(jobId, "call.status", {
+                  callId: call.id,
+                  businessId: b.id,
+                  purpose: "quote",
+                  status: event.status,
+                });
+              } else {
+                await sql`update calls set transcript=transcript||${JSON.stringify([event.line])}::jsonb where id=${call.id}`;
+                await emit(jobId, "transcript.line", {
+                  callId: call.id,
+                  ...event.line,
+                });
+              }
+            },
+            550,
+            signal,
+          );
         const [finished] = await sql<
           Call[]
         >`select * from calls where id=${call.id}`;
-        const q = await extract(
-          llm,
-          finished.transcript
-            .filter((l) => l.speaker === "party")
-            .map((l) => l.text)
-            .join("\n"),
-        );
+        const q =
+          finished.status === "declined"
+            ? {
+                price_cents: null,
+                currency: "USD",
+                earliest_slot: null,
+                includes: [],
+                guarantee: null,
+                willing_to_negotiate: null,
+                declined: true,
+                confidence: 1,
+              }
+            : await extract(
+                llm,
+                finished.transcript
+                  .filter((l) => l.speaker === "party")
+                  .map((l) => l.text)
+                  .join("\n"),
+              );
         const [quote] = await sql<
           Quote[]
         >`insert into quotes(call_id,business_id,price_cents,earliest_slot,includes,guarantee,willing_to_negotiate,confidence,declined) values(${call.id},${b.id},${q.price_cents},${q.earliest_slot},${q.includes},${q.guarantee},${q.willing_to_negotiate},${q.confidence},${q.declined}) on conflict(call_id) do update set confidence=excluded.confidence returning *,confidence::float8 as confidence`;
@@ -162,14 +254,50 @@ async function confirmCall(jobId: string) {
   await enqueue("reauthorize", jobId, new Date(Date.now() + 72 * 3600000));
   const q = await selected(sql, job);
   const bot = bots(job.brief).find((b) => b.name === q.name);
-  if (!bot || !q.earliestSlot) throw new Error("Confirmation unavailable");
-  const [call] = await sql<
-    Call[]
-  >`insert into calls(job_id,business_id,purpose) values(${jobId},${q.businessId},'confirm') returning *`;
+  if (!q.earliestSlot) throw new Error("Confirmation unavailable");
+  const call = await reserveConfirmationCall(jobId, q.businessId);
+  if (env.MOCK_TELEPHONY === "0") {
+    const result = await realConversation(configuredTwilio!, call.id, q.phone, {
+      purpose: "confirm",
+      task: job.brief.task.slice(0, 500),
+      location: job.brief.location.slice(0, 300),
+      window: job.brief.windowStart,
+      price: fromCents(q.priceCents!),
+      slot: new Intl.DateTimeFormat("en-GB", {
+        timeZone: "Africa/Harare",
+        dateStyle: "full",
+        timeStyle: "short",
+      }).format(new Date(q.earliestSlot)),
+      maxSeconds: 120,
+    }).catch(async () => {
+      if ((await getJob(jobId)).state === "FUNDS_HELD") {
+        await transition(jobId, { type: "BUSINESS_DECLINED" });
+        await emit(jobId, "notice", {
+          level: "warning",
+          message:
+            "The business could not be verified by phone. Your payment remains held; cancel the booking to release the hold.",
+        });
+      }
+      return undefined;
+    });
+    if (!result) return;
+    if ((await getJob(jobId)).state !== "FUNDS_HELD") return;
+    if (!result.result?.confirmed || !result.result.payoutEmail) {
+      await transition(jobId, { type: "BUSINESS_DECLINED" });
+      return;
+    }
+    await transition(jobId, {
+      type: "BUSINESS_CONFIRMED",
+      payoutEmail: result.result.payoutEmail,
+      slot: new Date(q.earliestSlot).toISOString(),
+    });
+    return;
+  }
+  if (!bot) throw new Error("Unknown mock bot");
   const lines = [
     `Yes, the price is $${fromCents(q.priceCents!)} and the slot is ${q.earliestSlot}. Confirmed. My PayPal email is ${bot.payoutEmail}.`,
   ];
-  await tel.conversation(
+  await mockTel.conversation(
     {
       callId: call.id,
       to: q.phone,
@@ -224,7 +352,7 @@ async function completionCall(jobId: string) {
   await emit(jobId, "notice", {
     level: "info",
     message:
-      "The slot has passed. Confirm completion in the app to release payment. No user phone number is collected in mock mode.",
+      "The slot has passed. Confirm completion in the app to release payment. No customer phone number is collected in this build.",
   });
 }
 const receiptAgent =
@@ -306,12 +434,24 @@ const app = Fastify({
     redact: [
       "req.headers.authorization",
       "req.headers.paypal-transmission-sig",
+      "req.headers.x-twilio-signature",
     ],
   },
 });
 await registerPayPalWebhook(app, (headers, body) =>
   receivePayPalWebhook(paypal, headers, body),
 );
+if (configuredTwilio)
+  await registerTwilioWebhooks(app, configuredTwilio.config, {
+    voice: (callId, turn, params) =>
+      handleVoiceTurn(
+        callId,
+        turn,
+        params,
+        configuredTwilio.config.publicWorkerUrl,
+      ),
+    status: handleVoiceStatus,
+  });
 app.get("/health", async () => ({
   ok: true,
   mode: env.MOCK_TELEPHONY === "1" ? "mock" : "sandbox",
@@ -320,6 +460,8 @@ app.get("/health", async () => ({
     paypal: env.MOCK_PAYPAL === "1" ? "mock" : "sandbox",
     llm: env.MOCK_LLM === "1" ? "mock" : "gemini",
     receipts: receiptAgent ? "paypal-invoice" : "mock",
+    telephony: env.MOCK_TELEPHONY === "1" ? "mock" : "twilio-gather",
+    twilioConfigured: Boolean(configuredTwilio),
   },
 }));
 app.addHook("preHandler", async (req, reply) => {

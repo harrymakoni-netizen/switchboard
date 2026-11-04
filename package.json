@@ -10,7 +10,8 @@
     "dev": "concurrently -k \"pnpm --filter web dev\" \"tsx --env-file=.env apps/worker/src/index.ts\"",
     "db:migrate": "tsx packages/db/src/migrate.ts",
     "e2e:mock": "playwright test",
-    "paypal:smoke": "tsx scripts/paypal-smoke.ts"
+    "paypal:smoke": "tsx scripts/paypal-smoke.ts",
+    "twilio:smoke": "tsx scripts/twilio-smoke.ts"
   },
   "devDependencies": {
     "@eslint/js": "^9.0.0",
@@ -35,6 +36,7 @@
     "drizzle-orm": "^0.44.0",
     "pg-boss": "^10.3.0",
     "postgres": "^3.4.5",
+    "twilio": "6.2.0",
     "zod": "^3.24.0"
   },
   "engines": {

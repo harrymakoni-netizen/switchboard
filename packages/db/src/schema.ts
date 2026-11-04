@@ -52,6 +52,18 @@ export const calls = pgTable("calls", {
   recordingUrl: text("recording_url"),
   transcript: jsonb("transcript").notNull().default([]),
 });
+export const voiceSessions = pgTable("voice_sessions", {
+  callId: uuid("call_id")
+    .primaryKey()
+    .references(() => calls.id, { onDelete: "cascade" }),
+  toNumber: text("to_number").notNull(),
+  fromNumber: text("from_number").notNull(),
+  state: jsonb("state").notNull(),
+  responses: jsonb("responses").notNull().default({}),
+  attemptedAt: time("attempted_at"),
+  deadline: time("deadline").notNull(),
+  createdAt: time("created_at").defaultNow().notNull(),
+});
 export const quotes = pgTable("quotes", {
   id: uuid("id").defaultRandom().primaryKey(),
   callId: uuid("call_id")

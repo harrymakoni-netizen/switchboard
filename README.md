@@ -54,6 +54,7 @@ The e2e command starts the production web server and worker, so run `pnpm build`
 - `packages/paypal`: sandbox-only REST adapter, mock stateful adapter, verified webhook inbox, polling, capture/order checks, and independent invoice verification.
 - `packages/agents`: Gemini structured JSON with strict validation and a transient-error model fallback, deterministic mock planner/extractor, finder schema, and an invoice-only receipt agent. The receipt agent adapts PayPal Agent Toolkit's older tool interface to the installed AI SDK's ToolLoopAgent. Agents cannot authorize, capture, void, refund, or pay out funds.
 - `packages/calls` / `packages/bots`: typed telephony boundary, AI disclosure, bounded concurrent mock conversations, SMS templates, and three synthetic bot personas.
+- The worker also supports an opt-in Twilio turn-based trial adapter with signed callbacks and durable call turns. It remains disabled until account and verified-recipient tests pass. See [Twilio trial setup and limits](docs/twilio-trial.md).
 
 All code is newly written from the supplied scope. No RollCall source was provided or reused. No stretch features have been implemented. The API uses a Next.js optional catch-all implementation while exposing the specified URLs; PayPal return/cancel handlers are separate routes.
 
@@ -71,7 +72,7 @@ All code is newly written from the supplied scope. No RollCall source was provid
 
 The environment has no configured provider credentials. **Keep mock mode enabled.** The worker deliberately refuses real telephony rather than silently substituting mock calls.
 
-Remaining implementation and verification: Twilio outbound calls, signature-validated telephony webhooks and media bridge; selected realtime voice provider; real bot phone numbers; Kernel discovery; and final end-to-end judge acceptance. Hosted PayPal order creation and Gemini planning/extraction have been exercised with real provider credentials; the user reported successful sandbox capture and payout. See [receipt implementation and verification limits](docs/paypal-receipts.md).
+Remaining implementation and verification: actual account verification for the new Twilio turn-based calling adapter; the original streaming voice bridge and automated bot phone lines; custom SMS; Kernel discovery; and final end-to-end judge acceptance. Hosted PayPal order creation and Gemini planning/extraction have been exercised with real provider credentials; the user reported successful sandbox capture, payout, and receipt viewing. See [receipt implementation](docs/paypal-receipts.md) and [trial calling limits](docs/twilio-trial.md).
 
 Configure the variables listed in `.env.example` through environment secrets. For PayPal, create a sandbox business account and REST app with Payouts, a sandbox personal buyer, and personal recipient accounts for the two accepting bots. Set `TENDAI_PAYOUT_EMAIL` and `QUICKFIX_PAYOUT_EMAIL` to those sandbox recipient emails. Demo `example.com` addresses must be replaced before real sandbox runs.
 

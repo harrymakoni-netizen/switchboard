@@ -19,7 +19,7 @@ export function bots(brief: JobBrief): Bot[] {
     {
       key: "tendai",
       name: "Tendai Plumbing",
-      phone: "+12025550101",
+      phone: process.env.TENDAI_PHONE_NUMBER?.trim() || "+12025550101",
       rating: 4.8,
       payoutEmail:
         process.env.TENDAI_PAYOUT_EMAIL ?? "tendai-sandbox@example.com",
@@ -33,7 +33,7 @@ export function bots(brief: JobBrief): Bot[] {
     {
       key: "quickfix",
       name: "QuickFix Geysers",
-      phone: "+12025550102",
+      phone: process.env.QUICKFIX_PHONE_NUMBER?.trim() || "+12025550102",
       rating: 4.9,
       payoutEmail:
         process.env.QUICKFIX_PAYOUT_EMAIL ?? "quickfix-sandbox@example.com",
@@ -47,7 +47,7 @@ export function bots(brief: JobBrief): Bot[] {
     {
       key: "avondale",
       name: "Avondale Handyman",
-      phone: "+12025550103",
+      phone: process.env.AVONDALE_PHONE_NUMBER?.trim() || "+12025550103",
       rating: 4.6,
       payoutEmail: "avondale-sandbox@example.com",
       priceCents: null,

@@ -17,6 +17,7 @@ export function loadEnv(
     ...source,
     PAYPAL_ENV: source.PAYPAL_ENV ?? "sandbox",
     PUBLIC_WORKER_URL: source.PUBLIC_WORKER_URL ?? source.RENDER_EXTERNAL_URL,
+    VOICE_PROVIDER: source.VOICE_PROVIDER?.trim() || "twilio-gather",
   };
   assertSandboxMode(normalized);
   const env = z
@@ -29,6 +30,7 @@ export function loadEnv(
       DEMO_MODE: z.enum(["0", "1"]).default("0"),
       MOCK_PAYPAL: z.enum(["0", "1"]).default("0"),
       MOCK_TELEPHONY: z.enum(["0", "1"]).default("0"),
+      VOICE_PROVIDER: z.string().default("twilio-gather"),
       MOCK_LLM: z.enum(["0", "1"]).default("0"),
       GEMINI_MODEL: z.string().trim().min(1).default(DEFAULT_GEMINI_MODEL),
       MOCK_PARTNERS: z.enum(["0", "1"]).default("0"),
@@ -43,8 +45,7 @@ export function loadEnv(
           "TWILIO_ACCOUNT_SID",
           "TWILIO_AUTH_TOKEN",
           "TWILIO_FROM_NUMBER",
-          "VOICE_PROVIDER",
-          "VOICE_API_KEY",
+          "TWILIO_ALLOWED_NUMBERS",
         ]
       : []),
     ...(env.MOCK_LLM === "0" ? ["GEMINI_API_KEY"] : []),
@@ -55,5 +56,9 @@ export function loadEnv(
   for (const key of required)
     if (!source[key]?.trim())
       throw new Error(`Missing required environment variable: ${key}`);
+  if (env.MOCK_TELEPHONY === "0" && env.VOICE_PROVIDER !== "twilio-gather")
+    throw new Error(
+      "VOICE_PROVIDER must be twilio-gather for turn-based calls.",
+    );
   return env;
 }

@@ -14,6 +14,25 @@ const env = {
 describe("startup safety", () => {
   it("runs offline without keys", () =>
     expect(loadEnv(env).PAYPAL_ENV).toBe("sandbox"));
+  it("keeps empty legacy voice settings compatible with offline mode", () => {
+    expect(loadEnv({ ...env, VOICE_PROVIDER: "" }).VOICE_PROVIDER).toBe(
+      "twilio-gather",
+    );
+  });
+  it("does not require an additional voice-provider key for Twilio prompts", () => {
+    const configured = {
+      ...env,
+      MOCK_TELEPHONY: "0",
+      TWILIO_ACCOUNT_SID: "test",
+      TWILIO_AUTH_TOKEN: "test",
+      TWILIO_FROM_NUMBER: "+12025550100",
+      TWILIO_ALLOWED_NUMBERS: "+12025550101",
+    };
+    expect(loadEnv(configured).VOICE_PROVIDER).toBe("twilio-gather");
+    expect(() =>
+      loadEnv({ ...configured, VOICE_PROVIDER: "unsupported" }),
+    ).toThrow("VOICE_PROVIDER");
+  });
   it("defaults to sandbox when unset", () =>
     expect(loadEnv({ ...env, PAYPAL_ENV: undefined }).PAYPAL_ENV).toBe(
       "sandbox",

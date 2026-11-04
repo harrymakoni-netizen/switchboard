@@ -164,10 +164,14 @@ export async function plan(llm: LLM, raw: string, now = new Date()) {
     schema: plannerSchema,
   });
 }
-export async function extract(llm: LLM, partyLines: string) {
+export async function extract(llm: LLM, partyLines: string, now = new Date()) {
   return llm.json({
     system: extractorPrompt,
-    user: `<untrusted_data>\n${partyLines}\n</untrusted_data>`,
+    user:
+      (llm instanceof MockLLM
+        ? ""
+        : `Current time: ${now.toISOString()}. Resolve explicitly stated relative dates in Africa/Harare using this time; leave unstated dates null.\n`) +
+      `<untrusted_data>\n${partyLines}\n</untrusted_data>`,
     schema: extractionSchema,
   });
 }

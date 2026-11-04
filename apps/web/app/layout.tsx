@@ -13,7 +13,7 @@ export default function Layout({ children }: { children: ReactNode }) {
         <Header />
         {process.env.DEMO_MODE === "1" && (
           <div className="demo-banner">
-            Judge mode: calls go to demo business bots · PayPal sandbox only
+            Judge mode · Demo providers · PayPal sandbox only
           </div>
         )}
         {children}
