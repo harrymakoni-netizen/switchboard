@@ -36,6 +36,41 @@ const order = {
   cancelUrl: "https://app.example/jobs/job-1/paypal/cancel",
 };
 describe("sandbox REST contract", () => {
+  it("reads invoices on the toolkit sandbox origin without changing the payment origin", async () => {
+    responseFor = (url) =>
+      url.includes("search-invoices")
+        ? { items: [] }
+        : {
+            id: "INV2-TEST",
+            status: "DRAFT",
+            detail: { invoice_number: "SB-test", reference: "job-1" },
+            amount: { currency_code: "USD", value: "110.00" },
+            primary_recipients: [
+              { billing_info: { email_address: "buyer@example.com" } },
+            ],
+            items: [
+              {
+                quantity: "1",
+                unit_amount: { currency_code: "USD", value: "110.00" },
+              },
+            ],
+          };
+    const paypal = client();
+    await expect(paypal.findReceiptInvoice("SB-test")).resolves.toBeUndefined();
+    await expect(paypal.getReceiptInvoice("INV2-TEST")).resolves.toMatchObject({
+      id: "INV2-TEST",
+    });
+    expect(requests[0].url).toBe(
+      "https://api-m.sandbox.paypal.com/v1/oauth2/token",
+    );
+    expect(
+      requests
+        .slice(1)
+        .every(
+          (r) => new URL(r.url).origin === "https://api.sandbox.paypal.com",
+        ),
+    ).toBe(true);
+  });
   it("authorizes, never auto-captures an order, and reuses OAuth", async () => {
     responseFor = (url) =>
       url.endsWith("/authorize")

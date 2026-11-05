@@ -281,7 +281,12 @@ export class HttpPayPal implements PayPal {
     body?: unknown,
     key?: string,
   ): Promise<unknown> {
-    const r = await fetch("https://api-m.sandbox.paypal.com" + path, {
+    // Keep invoice reads on the same official sandbox origin used by Agent Toolkit.
+    // Checkout, captures and payouts retain their existing api-m origin.
+    const origin = path.startsWith("/v2/invoicing/")
+      ? "https://api.sandbox.paypal.com"
+      : "https://api-m.sandbox.paypal.com";
+    const r = await fetch(origin + path, {
       method,
       headers: {
         authorization: "Bearer " + (await this.accessToken()),
