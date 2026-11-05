@@ -50,6 +50,8 @@ pnpm twilio:smoke --state .twilio-smoke/custom.json --status
 
 For the custom call, answer the AI disclosure with yes or keypad 1, then provide a practice USD price, an explicit date/time in Harare, inclusions and a guarantee. A completed questionnaire is stored as a synthetic DRAFT test job and cannot initiate payment effects.
 
+Keep the Shell open during the custom test: it monitors the two-minute deadline and attempts to end a timed-out call. Trial requests omit full-account Calls API options (`timeLimit`, `timeout`, `record`, `method`, and callback event/method overrides), which the account rejected with HTTP 400. Call deadlines remain enforced by the live monitor and on every speech turn; Twilio's provider-level trial ceiling is ten minutes if the monitor is interrupted. Full accounts also receive an API `timeLimit`. Custom URL acceptance still needs a real account test.
+
 The CLI reserves an ignored state file before calling. Reusing it refuses a second outgoing request. For an uncertain custom-call response, `--status` can recover a call ID that a signed callback already saved. Otherwise check Twilio Logs before deciding whether to make a new test. A queued API result alone does not prove the phone rang or the questionnaire worked.
 
 Rejected requests include Twilio's explanation with configured credentials redacted. A definite HTTP 4xx rejection is saved in the state file so `--status` reports the original error instead of labeling it uncertain. Network failures remain uncertain and are never automatically retried.

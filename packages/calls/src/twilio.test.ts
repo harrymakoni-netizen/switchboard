@@ -52,8 +52,9 @@ it("rejects non-allowlisted and self-dialled targets before contacting Twilio", 
   );
   expect(port.createCall).not.toHaveBeenCalled();
 });
-it("caps custom calls and uses signed-callback endpoints without audio recording", async () => {
-  const { client, port } = fixture();
+it("caps full-account custom calls and uses signed-callback endpoints without audio recording", async () => {
+  const { port } = fixture();
+  const client = new TwilioTelephony({ ...config, mode: "full" }, port);
   const callId = randomUUID();
   await client.placeCall({
     callId,
@@ -68,6 +69,33 @@ it("caps custom calls and uses signed-callback endpoints without audio recording
       statusCallback: `https://worker.example/webhooks/twilio/status/${callId}`,
     }),
   );
+});
+it("omits unsupported Calls API options for limited-trial custom calls", async () => {
+  const { client, port } = fixture();
+  const callId = randomUUID();
+  vi.mocked(port.createCall).mockImplementation(async (options) => {
+    const allowed = new Set(["to", "from", "url", "statusCallback"]);
+    if (Object.keys(options).some((key) => !allowed.has(key)))
+      throw {
+        status: 400,
+        message: "Invalid or disallowed parameters provided",
+      };
+    return { sid: "CA" + "2".repeat(32), status: "queued" };
+  });
+  await expect(
+    client.placeCall({
+      callId,
+      to: config.allowedNumbers[0],
+      script: script("quote", "repair"),
+    }),
+  ).resolves.toEqual({ providerSid: "CA" + "2".repeat(32) });
+  expect(port.createCall).toHaveBeenCalledOnce();
+  expect(port.createCall).toHaveBeenCalledWith({
+    to: config.allowedNumbers[0],
+    from: config.fromNumber,
+    url: `https://worker.example/webhooks/twilio/voice/${callId}/0`,
+    statusCallback: `https://worker.example/webhooks/twilio/status/${callId}`,
+  });
 });
 it("does not retry an uncertain call creation", async () => {
   const { client, port } = fixture();

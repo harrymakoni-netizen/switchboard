@@ -172,16 +172,27 @@ export class TwilioTelephony implements Telephony {
           "/webhooks/twilio/voice/" +
           args.callId +
           "/0",
-        method: "POST",
-        timeLimit: args.script.maxSeconds,
-        timeout: 25,
-        record: false,
+        // Limited trials reject additional Calls API parameters, even record=false.
+        // Trial deadlines are enforced by the durable worker/CLI monitor and turn handlers.
+        ...(this.config.mode === "full"
+          ? {
+              method: "POST" as const,
+              timeLimit: args.script.maxSeconds,
+              timeout: 25,
+              record: false,
+              statusCallbackMethod: "POST" as const,
+              statusCallbackEvent: [
+                "initiated",
+                "ringing",
+                "answered",
+                "completed",
+              ],
+            }
+          : {}),
         statusCallback:
           this.config.publicWorkerUrl +
           "/webhooks/twilio/status/" +
           args.callId,
-        statusCallbackMethod: "POST",
-        statusCallbackEvent: ["initiated", "ringing", "answered", "completed"],
       }),
     );
     return { providerSid: result.sid };

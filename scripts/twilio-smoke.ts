@@ -9,9 +9,16 @@ import {
   TwilioTransportError,
   twilioConfig,
 } from "../packages/calls/src/twilio";
-import { prepareVoice } from "../apps/worker/src/voice";
+import { prepareVoice, realConversation } from "../apps/worker/src/voice";
 import { z } from "zod";
 const args = process.argv.slice(2);
+const customPlan = {
+  purpose: "quote" as const,
+  task: "provide a practice water-heater repair quote for a Switchboard test, not a real service request",
+  location: "Avondale",
+  window: "tomorrow in Harare local time",
+  maxSeconds: 120,
+};
 const stateSchema = z.object({
   callId: z.string().uuid(),
   to: z.string(),
@@ -108,13 +115,12 @@ async function main() {
       const [business] =
         await sql`insert into businesses(job_id,name,phone,is_bot) values(${job.id},'Verified test recipient',${to},true) returning id`;
       await sql`insert into calls(id,job_id,business_id,purpose,status) values(${state.callId},${job.id},${business.id},'quote','dispatching')`;
-      await prepareVoice(state.callId, to, client.config.fromNumber, {
-        purpose: "quote",
-        task: "provide a practice water-heater repair quote for a Switchboard test, not a real service request",
-        location: "Avondale",
-        window: "tomorrow in Harare local time",
-        maxSeconds: 120,
-      });
+      await prepareVoice(
+        state.callId,
+        to,
+        client.config.fromNumber,
+        customPlan,
+      );
       await sql`update voice_sessions set attempted_at=now() where call_id=${state.callId}`;
       await persist();
       const result = await client.placeCall({
@@ -153,6 +159,18 @@ async function main() {
   console.log(
     "Answer your verified phone. Use --status with the same state file afterward. Do not delete the state file to retry an uncertain call.",
   );
+  if (state.custom) {
+    console.log(
+      "Keep this Shell open: monitoring the custom call's two-minute deadline.",
+    );
+    const result = await realConversation(client, state.callId, to, customPlan);
+    console.log(
+      JSON.stringify({
+        questionnairePhase: result.phase,
+        result: result.result,
+      }),
+    );
+  }
 }
 main()
   .catch((error) => {
