@@ -76,8 +76,12 @@ export class GeminiLLM implements LLM {
           if (
             fallbackUsed ||
             this.modelId === this.fallbackModelId ||
-            !APICallError.isInstance(error) ||
-            ![500, 502, 503, 504].includes(error.statusCode ?? 0)
+            !(
+              (APICallError.isInstance(error) &&
+                [500, 502, 503, 504].includes(error.statusCode ?? 0)) ||
+              (error instanceof Error &&
+                ["TimeoutError", "AbortError"].includes(error.name))
+            )
           )
             throw error;
           fallbackUsed = true;

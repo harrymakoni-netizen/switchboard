@@ -233,6 +233,26 @@ describe("Gemini provider contract", () => {
     );
     expect(t.requests).toHaveLength(2);
   });
+  it.each(["TimeoutError", "AbortError"])(
+    "uses the fallback when a generation ends with %s",
+    async (name) => {
+      const t = transport(['{"ok":true}']);
+      let calls = 0;
+      const fetcher: typeof fetch = async (input, init) => {
+        if (++calls === 1) throw new DOMException("Timed out", name);
+        return t.fetcher(input, init);
+      };
+      await expect(
+        new GeminiLLM({ apiKey: "test", fetch: fetcher }).json({
+          system: "test",
+          user: "source",
+          schema: z.object({ ok: z.boolean() }),
+        }),
+      ).resolves.toEqual({ ok: true });
+      expect(calls).toBe(2);
+      expect(t.requests[0].url).toContain("gemini-3.5-flash-lite");
+    },
+  );
   it.each([400, 401, 403, 429])(
     "does not switch models for HTTP %s",
     async (status) => {

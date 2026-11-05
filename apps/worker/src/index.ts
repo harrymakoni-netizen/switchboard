@@ -221,6 +221,21 @@ async function runCalls(jobId: string) {
           });
         }
       } catch (error) {
+        const cause = error instanceof Error ? error.cause : undefined;
+        // Do not log SDK request/response objects, prompts, headers, or credentials.
+        console.error("Quote conversation/extraction failed", {
+          callId: call.id,
+          model: llm instanceof GeminiLLM ? llm.modelId : "mock",
+          error: error instanceof Error ? error.name : "UnknownError",
+          cause: cause instanceof Error ? cause.name : undefined,
+          status:
+            cause &&
+            typeof cause === "object" &&
+            "statusCode" in cause &&
+            typeof cause.statusCode === "number"
+              ? cause.statusCode
+              : undefined,
+        });
         await sql`update calls set status='failed',ended_at=now() where id=${call.id}`;
         await emit(jobId, "call.status", {
           callId: call.id,
@@ -459,6 +474,8 @@ app.get("/health", async () => ({
   providers: {
     paypal: env.MOCK_PAYPAL === "1" ? "mock" : "sandbox",
     llm: env.MOCK_LLM === "1" ? "mock" : "gemini",
+    llmModel: llm instanceof GeminiLLM ? llm.modelId : "mock",
+    llmFallbackModel: llm instanceof GeminiLLM ? llm.fallbackModelId : "mock",
     receipts: receiptAgent ? "paypal-invoice" : "mock",
     telephony: env.MOCK_TELEPHONY === "1" ? "mock" : "twilio-gather",
     twilioConfigured: Boolean(configuredTwilio),
