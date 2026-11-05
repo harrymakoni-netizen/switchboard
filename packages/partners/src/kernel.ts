@@ -14,9 +14,11 @@ const pageEvidenceSchema = z.object({
   links: z.array(z.string()).max(200),
 });
 export function directoryUrl(template: string, brief: JobBrief) {
-  if (!template.includes("{query}") || !template.includes("{location}"))
+  const query = template.includes("{query}");
+  const location = template.includes("{location}");
+  if (query !== location || /\{(?!query\}|location\})[^}]*\}/.test(template))
     throw new Error(
-      "Directory template requires query and location placeholders",
+      "Use a fixed directory URL or include both query and location placeholders",
     );
   return publicUrl.parse(
     template

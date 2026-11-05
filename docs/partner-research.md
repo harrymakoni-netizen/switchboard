@@ -18,7 +18,7 @@ DIRECTORY_URL_TEMPLATE=https://your-approved-directory/search?q={query}&location
 CHANNEL3_API_KEY=<Channel3 dashboard key>
 ```
 
-The directory URL above is a template example, not a working directory. Choose a public business directory you are permitted to browse whose results expose business names and phone numbers. Test that specific URL in Kernel before the demo. Both `{query}` and `{location}` placeholders are required. Query values are encoded; the configured hostname cannot come from user input. Kernel permits network requests only to that hostname. Sites needing a different redirect host, third-party scripts or CAPTCHA may fail rather than produce usable evidence. No default directory coverage is promised.
+The directory URL above is a template example, not a working directory. Choose a public business directory you are permitted to browse whose results expose business names and phone numbers. Test that specific URL in Kernel before the demo. A fixed public directory URL is supported. If using placeholders, include both `{query}` and `{location}`. Query values are encoded; the configured hostname cannot come from user input. Kernel permits network requests only to that hostname. Sites needing a different redirect host, third-party scripts or CAPTCHA may fail rather than produce usable evidence. No default directory coverage is promised.
 
 Set `PARTNER_RESEARCH_MODE=live` on **Vercel** too, and redeploy so the UI and job-owned research action are enabled. API keys belong on the worker; Vercel does not need either key or the directory template. Keep `DEMO_MODE=1`, `MOCK_PARTNERS=1`, `MOCK_TELEPHONY=1`, and `PAYPAL_ENV=sandbox`. Keep the already-working PayPal settings. Kernel extraction uses the existing worker Gemini configuration (`MOCK_LLM=0` and its configured key).
 
@@ -46,3 +46,19 @@ Offline tests exercise the official Kernel SDK through stubbed HTTP, session cle
 A test passing against stubs is not live partner acceptance. Before claiming either integration in the submission, configure real keys, verify the selected directory, inspect a live research result and record updated footage. The previously delivered video predates these integrations.
 
 Verified on 5 November 2026: 217 automated tests passed across 20 files; strict typecheck, ESLint and the Next.js production build passed. All 12 browser scenarios passed in fully mocked mode, with the two research scenarios rerun after adding coverage for manual research on an existing job. Desktop (1440 px) and mobile (375 px) screenshots were inspected; no horizontal overflow. The Impeccable detector reported no findings. Live Kernel and Channel3 calls were not made.
+
+
+## Live connection checks and hackathon directory
+
+Kernel authenticated, created/deleted browser sessions, and retrieved the public directory below with business names, phone numbers and profile links. Channel3 returned five valid USD offers for a replacement water-heater element (median $23.06 at lookup time). These verify the provider connections; they do not yet verify hosted Gemini extraction and persistence for a job.
+
+For the current Harare plumbing demonstration, set this on Render:
+
+```
+DIRECTORY_URL_TEMPLATE=https://www.zimbabweyp.com/category/plumbers/city:Harare
+PARTNER_RESEARCH_MODE=live
+```
+
+This is a fixed Harare plumbing directory, not a location-agnostic search. Gemini evaluates the retrieved leads against the repair brief; the page does not filter itself to the customer's street or suburb. Availability, suitability, service coverage and prices require confirmation. Keep real directory leads separate from simulated quote providers. Other trades or cities need a suitable directory source before claiming coverage.
+
+Keep both existing provider keys and demo/sandbox flags. Deploy the latest worker after changing these settings. Health reports `kernelKeyConfigured` and `directoryConfigured` separately to distinguish a missing key from a missing source without revealing either value. Once the worker reports live research, enable the same mode on Vercel and verify a new job end to end.

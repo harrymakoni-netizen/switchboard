@@ -60,9 +60,13 @@ describe("Kernel discovery", () => {
     "http://directory.example.org?q={query}&l={location}",
     "https://127.0.0.1?q={query}&l={location}",
     "https://user:pass@directory.example.org?q={query}&l={location}",
-    "https://directory.example.org/no-placeholders",
+    "https://directory.example.org/search?q={query}",
   ])("rejects invalid directory templates %s", (value) => {
     expect(() => directoryUrl(value, brief)).toThrow();
+  });
+  it("accepts a fixed public directory without pretending it performs a search", () => {
+    const source = "https://www.zimbabweyp.com/category/plumbers/city:Harare";
+    expect(directoryUrl(source, brief)).toBe(source);
   });
   it("creates a bounded browser, reads with fixed code, and always deletes the session", async () => {
     const calls: {

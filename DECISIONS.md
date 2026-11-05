@@ -54,3 +54,5 @@
 - Judge-mode real directory leads remain separate from simulated quote providers. Outside judge mode, Kernel replaces the finder placeholder; real businesses cannot acquire simulated quotes. Insufficient evidence is not padded to three results.
 - Channel3 provides a USD US-market retail parts benchmark only for an explicit part hint. One cheapest offer per returned product contributes to the median. No automatic payment or provider-price changes, no invented fallbacks, and no diagnosis from a vague repair request. Counteroffer automation remains deferred until the voice integration supports and verifies it.
 - Research snapshots reuse the owned-job event stream; no schema migration is required. Manual retries use the durable outbox with a one-minute request cooldown.
+
+- Live Kernel verification retrieved the fixed public Harare plumber directory. Directory configuration now accepts a fixed URL as well as a complete query/location template; this avoids pretending a static category page performs a dynamic search. Directory coverage is explicitly limited to this demo area/trade.

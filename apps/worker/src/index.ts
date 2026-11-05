@@ -533,6 +533,8 @@ app.get("/health", async () => ({
     kernelConfigured: Boolean(
       process.env.KERNEL_API_KEY && process.env.DIRECTORY_URL_TEMPLATE,
     ),
+    kernelKeyConfigured: Boolean(process.env.KERNEL_API_KEY),
+    directoryConfigured: Boolean(process.env.DIRECTORY_URL_TEMPLATE),
     channel3Configured: Boolean(process.env.CHANNEL3_API_KEY),
   },
 }));
