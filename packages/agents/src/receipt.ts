@@ -86,10 +86,11 @@ export function toolkitExecutor(
   };
 }
 
-function createdInvoiceId(result: unknown) {
+export function createdInvoiceId(result: unknown) {
   const value = z
     .object({
       id: z.string().optional(),
+      invoice_id: z.string().optional(),
       href: z.string().optional(),
       links: z
         .array(z.object({ rel: z.string(), href: z.string() }))
@@ -97,6 +98,8 @@ function createdInvoiceId(result: unknown) {
     })
     .parse(result);
   if (value.id && /^INV2-[A-Z0-9-]+$/.test(value.id)) return value.id;
+  if (value.invoice_id && /^INV2-[A-Z0-9-]+$/.test(value.invoice_id))
+    return value.invoice_id;
   const href = value.href ?? value.links?.find((l) => l.rel === "self")?.href;
   if (href) {
     const url = new URL(href);
@@ -105,7 +108,11 @@ function createdInvoiceId(result: unknown) {
     );
     if (
       url.protocol === "https:" &&
-      url.hostname === "api-m.sandbox.paypal.com" &&
+      ["api-m.sandbox.paypal.com", "api.sandbox.paypal.com"].includes(
+        url.hostname,
+      ) &&
+      !url.username &&
+      !url.password &&
       match
     )
       return match[1];

@@ -13,6 +13,7 @@ import {
 } from "@switchboard/paypal";
 import {
   createReceiptAgent,
+  createdInvoiceId,
   receiptActions,
   invoiceToolNames,
   ReceiptToolkitError,
@@ -24,6 +25,27 @@ beforeEach(() => vi.stubEnv("PAYPAL_ENV", "sandbox"));
 afterEach(() => {
   vi.unstubAllEnvs();
   vi.restoreAllMocks();
+});
+it("accepts sandbox invoice response formats and rejects live or lookalike hosts", () => {
+  for (const hostname of ["api-m.sandbox.paypal.com", "api.sandbox.paypal.com"])
+    expect(
+      createdInvoiceId({
+        href: `https://${hostname}/v2/invoicing/invoices/INV2-TEST-TEST`,
+      }),
+    ).toBe("INV2-TEST-TEST");
+  expect(createdInvoiceId({ invoice_id: "INV2-TEST-TEST" })).toBe(
+    "INV2-TEST-TEST",
+  );
+  for (const hostname of [
+    "api-m.paypal.com",
+    "api.paypal.com",
+    "api.sandbox.paypal.com.evil.example",
+  ])
+    expect(() =>
+      createdInvoiceId({
+        href: `https://${hostname}/v2/invoicing/invoices/INV2-TEST-TEST`,
+      }),
+    ).toThrow(ReceiptReviewError);
 });
 function model(input = "{}") {
   return new MockLanguageModelV4({

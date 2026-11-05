@@ -131,6 +131,37 @@ it("requires completion approval before invoking receipt tools", async () => {
   );
   expect(run).not.toHaveBeenCalled();
 });
+it("recovers only identifier-format review failures without repeating payment", async () => {
+  const run = vi.fn<ReceiptAgent>(async (_request, checkpoint) => {
+    await checkpoint({
+      invoiceId: "INV2-RECOVERED",
+      status: "PAID",
+      verified: true,
+    });
+  });
+  const { job, engine } = await fixture(run);
+  await recordPayment({
+    jobId: job.id,
+    kind: "invoice",
+    paypalId: null,
+    status: "NEEDS_REVIEW",
+    amountCents: 11000,
+    requestId: job.id + ":invoice",
+    raw: {
+      invoiceId: "",
+      status: "NEEDS_REVIEW",
+      verified: false,
+      reason: "PayPal did not return a valid sandbox invoice identifier.",
+    },
+  });
+  await engine.receipt(job.id);
+  await engine.receipt(job.id);
+  expect(run).toHaveBeenCalledTimes(1);
+  const rows = await sql`select * from payments where job_id=${job.id}`;
+  expect(rows.filter((p) => p.kind === "capture")).toHaveLength(1);
+  expect(rows.some((p) => p.kind === "payout")).toBe(false);
+  expect(rows.find((p) => p.kind === "invoice")?.status).toBe("PAID");
+});
 it("does not create real invoices for historical mock captures", async () => {
   const run = vi.fn<ReceiptAgent>();
   const { job, engine } = await fixture(run);

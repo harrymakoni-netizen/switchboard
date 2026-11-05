@@ -261,7 +261,18 @@ export function createMoneyEngine({
         .safeParse(existing?.raw);
       if (existing?.status === "PAID" && saved.success && saved.data.verified)
         return;
-      if (existing?.status === "NEEDS_REVIEW") return;
+      if (
+        existing?.status === "NEEDS_REVIEW" &&
+        (existing.paypalId ||
+          !z
+            .object({
+              reason: z.literal(
+                "PayPal did not return a valid sandbox invoice identifier.",
+              ),
+            })
+            .safeParse(existing.raw).success)
+      )
+        return;
       if (!receiptAgent)
         throw new Error("Sandbox receipt agent is not configured.");
       const job = await getJob(jobId);

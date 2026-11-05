@@ -415,7 +415,8 @@ if (env.MOCK_PAYPAL === "0") {
     await sql`select c.job_id from payments c join jobs j on j.id=c.job_id
     left join payments i on i.job_id=c.job_id and i.kind='invoice'
     where c.kind='capture' and c.status='COMPLETED' and c.paypal_id not like 'MOCK-%'
-    and j.approved_done_at is not null and (i.id is null or i.status='PENDING') limit 100`;
+    and j.approved_done_at is not null and (i.id is null or i.status='PENDING'
+      or (i.status='NEEDS_REVIEW' and i.paypal_id is null and i.raw->>'reason'='PayPal did not return a valid sandbox invoice identifier.')) limit 100`;
   for (const row of pendingReceipts) await enqueue("receipt", row.jobId);
 }
 let dispatching = false;
