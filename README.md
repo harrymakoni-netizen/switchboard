@@ -1,8 +1,31 @@
 # Switchboard
 
-A buyer’s assistant for arranging a home repair: one brief, parallel quote calls, a live comparison board, and two explicit payment approvals.
+A buyer’s assistant for arranging a home repair: one brief, evidence-backed quote comparison, and two explicit payment approvals.
 
-**Current build: hosted sandbox demo with PayPal and Gemini enabled.** Open https://switchboard-hjm-technologies.vercel.app. The worker runs on Render with Postgres; calls and business discovery remain simulated. PayPal uses sandbox funds only. The offline mock demo remains available without service keys. M7 is partially integrated; real calling, discovery, and final judge acceptance remain unfinished. Source: https://github.com/harrymakoni-netizen/switchboard. See [MILESTONES.md](MILESTONES.md).
+**[Open Switchboard](https://switchboard-hjm-technologies.vercel.app) · [Demo walkthrough](https://switchboard-hjm-technologies.vercel.app/demo) · [Submission draft and video script](docs/hackathon-submission.md)**
+
+The hosted demonstration uses **Gemini and PayPal sandbox APIs** with persistent Postgres state and a Render worker. Business discovery and phone conversations are **simulated**, clearly labeled throughout the interface. No real repairs are booked or real money moved. A complete offline mode also runs without provider API keys.
+
+## For judges
+
+1. Open the hosted demo in one browser, select the sample repair, then **Find my quotes**.
+2. Compare Tendai’s $95 quote and 30-day guarantee with QuickFix’s $110 quote and 90-day guarantee. The cheaper provider offers a later appointment; times outside your requested window are flagged. Avondale declines. All names, prices, ratings, and conversations are synthetic demo data.
+3. Open **Transcript** to inspect the evidence, then **Book** a quote within budget.
+4. Approve using a **PayPal sandbox Personal buyer account**. Your real PayPal account is not a sandbox buyer login. Create a test buyer at [PayPal Developer → Sandbox Accounts](https://developer.paypal.com/dashboard/accounts), or use sandbox test access supplied privately with the submission. Never publish real credentials or developer API secrets.
+5. Once confirmed, select **Show payout recipient**, review it, then **Fast-forward to completion**.
+6. **Mark done · release payment** captures the authorized amount and initiates payout. Watch the provider status and open **View receipt** when ready. Unclaimed payouts are distinguished from completed payouts.
+
+To test the other outcomes, **Cancel booking** requests voiding before capture; **Not done · keep funds held** records an issue without capture. Keep the same browser session: access is protected by a signed anonymous cookie. Avoid private-window switching mid-checkout.
+
+| Capability | Hosted demonstration | Offline setup |
+| --- | --- | --- |
+| Brief planning and quote extraction | Gemini, strict validated output | Deterministic mock |
+| Comparison | AG Grid desktop; complete quote details and booking controls on mobile | Same interface |
+| Authorize, capture, void, payout | PayPal sandbox API | Stateful mock adapter |
+| Invoice receipt | PayPal invoice workflow, independently verified before display | Printable mock receipt |
+| Discovery and conversations | Configured providers and scripted transcripts | Same simulation |
+
+Live phone conversations and business-directory discovery remain unfinished and are not presented as working features. Twilio placed calls in a separate integration test, but the custom questionnaire has not been verified. See [telephony status](docs/twilio-trial.md).
 
 ## Run locally
 
@@ -24,7 +47,7 @@ The Docker Compose database is exposed on port **5433**. Set DATABASE_URL in `.e
 Try **“Fix Mum’s geyser in Avondale tomorrow, under $120”**:
 
 1. Watch three demo businesses get called in parallel: Tendai quotes $95, QuickFix quotes $110, and Avondale declines.
-2. Open **Listen** to inspect the disclosed AI conversation. This is a transcript, not a recording.
+2. Open **Transcript** to inspect the disclosed simulated conversation. This is text, not a recording.
 3. Choose **Book**. Mock approval redirects automatically and records a sandbox hold; no charge occurs.
 4. Wait for booking confirmation. Click **Show payout recipient** and review the email.
 5. Use **Fast-forward to completion**, then **Mark done · release payment**.
@@ -68,15 +91,15 @@ All code is newly written from the supplied scope. No RollCall source was provid
 - Job access is isolated by a signed anonymous cookie; no accounts or passwords.
 - Runtime secrets are not committed.
 
-## M7: real integrations still required
+## Integration status and deployment
 
-The environment has no configured provider credentials. **Keep mock mode enabled.** The worker deliberately refuses real telephony rather than silently substituting mock calls.
+The hosted project has working PayPal sandbox and Gemini configuration. Local setup defaults to all mocks. **Keep `MOCK_TELEPHONY=1` and `MOCK_PARTNERS=1` for the selected hackathon demo scope.** No paid voice upgrade is required to evaluate that scope.
 
-Remaining implementation and verification: actual account verification for the new Twilio turn-based calling adapter; the original streaming voice bridge and automated bot phone lines; custom SMS; Kernel discovery; and final end-to-end judge acceptance. Hosted PayPal order creation and Gemini planning/extraction have been exercised with real provider credentials; the user reported successful sandbox capture, payout, and receipt viewing. See [receipt implementation](docs/paypal-receipts.md) and [trial calling limits](docs/twilio-trial.md).
+Live-provider acceptance still requires a final fresh-browser sandbox run before recording the submission. Hosted PayPal order creation and Gemini planning/extraction have been exercised with real provider credentials; the owner reported successful sandbox capture, payout, and receipt viewing. Automated checks use mocks and are not evidence of fresh provider availability. See [receipt implementation](docs/paypal-receipts.md), [trial calling limits](docs/twilio-trial.md), and [release checklist](docs/hackathon-submission.md).
 
 Configure the variables listed in `.env.example` through environment secrets. For PayPal, create a sandbox business account and REST app with Payouts, a sandbox personal buyer, and personal recipient accounts for the two accepting bots. Set `TENDAI_PAYOUT_EMAIL` and `QUICKFIX_PAYOUT_EMAIL` to those sandbox recipient emails. Demo `example.com` addresses must be replaced before real sandbox runs.
 
-The user authorized hosting before M7 completion. Render provisioning is complete; `render.yaml`, the final Postman collection, and full hosted judge acceptance remain M8 work. The worker is a Render **web service** for public HTTPS/WSS callbacks.
+The worker is a Render **web service** with HTTPS callbacks and a pre-deploy migration command. See [deployment instructions](docs/render-worker.md). A [Postman collection](docs/switchboard.postman_collection.json) covers the explicit API actions; its requests never automatically execute the next payment step.
 
 ## Design
 

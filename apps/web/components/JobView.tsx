@@ -14,7 +14,15 @@ const QuoteBoard = dynamic(
 import { JobStepper } from "./JobStepper";
 import { MoneyPanel } from "./MoneyPanel";
 import { TranscriptDrawer } from "./TranscriptDrawer";
-export function JobView({ id, demo }: { id: string; demo: boolean }) {
+export function JobView({
+  id,
+  demo,
+  simulatedCalls,
+}: {
+  id: string;
+  demo: boolean;
+  simulatedCalls: boolean;
+}) {
   const [data, setData] = useState<Snapshot | null>(null);
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
@@ -22,6 +30,7 @@ export function JobView({ id, demo }: { id: string; demo: boolean }) {
   const [transcript, setTranscript] = useState<BoardRow | null>(null);
   const [revision, setRevision] = useState(0);
   const [email, setEmail] = useState<string | null>(null);
+  const [connected, setConnected] = useState(false);
   const search = useSearchParams();
   const [question, setQuestion] = useState(search.get("question") ?? "");
   const [answer, setAnswer] = useState("");
@@ -35,6 +44,8 @@ export function JobView({ id, demo }: { id: string; demo: boolean }) {
   useEffect(() => {
     void refresh().catch((e) => setError(e.message));
     const stream = new EventSource("/api/jobs/" + id + "/events");
+    stream.onopen = () => setConnected(true);
+    stream.onerror = () => setConnected(false);
     for (const name of [
       "connected",
       "state.changed",
@@ -93,9 +104,10 @@ export function JobView({ id, demo }: { id: string; demo: boolean }) {
     [post],
   );
   const listen = useCallback((row: BoardRow) => setTranscript(row), []);
+  const closeTranscript = useCallback(() => setTranscript(null), []);
   if (!data)
     return (
-      <main className="loading" role="status">
+      <main className="loading" id="main" role="status">
         {error || "Opening your switchboard…"}
       </main>
     );
@@ -111,6 +123,16 @@ export function JobView({ id, demo }: { id: string; demo: boolean }) {
     };
   });
   const payoutPayment = payments.find((p) => p.kind === "payout");
+  const chosen = rows.find((r) => r.quote?.id === job.chosenQuoteId);
+  const eligible = quotes.filter(
+    (q) =>
+      !q.declined &&
+      q.priceCents !== null &&
+      q.priceCents <= (job.brief?.budgetCents ?? 0),
+  );
+  const lowest = eligible.length
+    ? Math.min(...eligible.map((q) => q.priceCents!))
+    : null;
   const capturePayment = payments.find((p) => p.kind === "capture");
   const payment = payments.some((p) => p.kind === "void")
     ? "Released"
@@ -131,12 +153,18 @@ export function JobView({ id, demo }: { id: string; demo: boolean }) {
           ? "Held"
           : "—";
   const statusText: Record<string, string> = {
-    FINDING: "Looking for businesses that can help with your repair.",
-    CALLING: "The calls are underway. Quotes appear as each conversation ends.",
+    FINDING: simulatedCalls
+      ? "Loading the demo providers for your repair brief."
+      : "Looking for businesses that can help with your repair.",
+    CALLING: simulatedCalls
+      ? "Demo conversations are running. Extracted quotes appear as each finishes."
+      : "The calls are underway. Quotes appear as each conversation ends.",
     QUOTED:
-      "The calls are complete. Compare the quotes and choose who gets the job.",
+      "Compare the price, what’s included, and the transcript. You choose who gets the job.",
     BOOK_APPROVED: "Preparing PayPal approval. No funds have been captured.",
-    FUNDS_HELD: "Funds are held. We’re calling back to confirm your booking.",
+    FUNDS_HELD: simulatedCalls
+      ? "Funds are held. A simulated provider conversation will confirm the booking."
+      : "Funds are held. We’re calling back to confirm your booking.",
     CONFIRMED:
       "Your booking is confirmed. Payment waits until you confirm completion.",
     AWAITING_COMPLETION:
@@ -151,7 +179,7 @@ export function JobView({ id, demo }: { id: string; demo: boolean }) {
     ISSUE: "This job needs attention. Any existing hold stays in place.",
   };
   return (
-    <main className="shell">
+    <main className="shell" id="main">
       <div className="job-top">
         <div>
           <h1>{job.brief?.task ?? "Let’s finish your brief"}</h1>
@@ -226,6 +254,36 @@ export function JobView({ id, demo }: { id: string; demo: boolean }) {
           <p className="progress-note" role="status">
             {statusText[job.state]}
           </p>
+          {chosen && (
+            <div className="booking-summary">
+              <div>
+                <span className="small">Your chosen provider</span>
+                <strong>{chosen.name}</strong>
+              </div>
+              <div>
+                <span className="small">Agreed quote · USD</span>
+                <strong>
+                  {chosen.priceCents === null
+                    ? "Not quoted"
+                    : `$${(chosen.priceCents / 100).toFixed(2)}`}
+                </strong>
+              </div>
+              {job.bookedSlot && (
+                <div>
+                  <span className="small">Confirmed appointment · Harare</span>
+                  <strong>
+                    {new Intl.DateTimeFormat("en-GB", {
+                      timeZone: "Africa/Harare",
+                      day: "numeric",
+                      month: "short",
+                      hour: "2-digit",
+                      minute: "2-digit",
+                    }).format(new Date(job.bookedSlot))}
+                  </strong>
+                </div>
+              )}
+            </div>
+          )}
           {job.state === "CLOSED" && (
             <div className="closed-banner">
               {payoutPayment?.status === "UNCLAIMED"
@@ -233,7 +291,7 @@ export function JobView({ id, demo }: { id: string; demo: boolean }) {
                 : "All taken care of. Thanks for using Switchboard."}
             </div>
           )}
-          <div className="workspace">
+          <div className={"workspace" + (chosen ? " has-booking" : "")}>
             <section>
               <div className="board-header">
                 <h2>Your quote board</h2>
@@ -244,6 +302,20 @@ export function JobView({ id, demo }: { id: string; demo: boolean }) {
                   {businesses.length} businesses
                 </span>
               </div>
+              {job.state === "QUOTED" && (
+                <div className="quote-summary">
+                  <strong>
+                    {eligible.length
+                      ? `${eligible.length} ${eligible.length === 1 ? "quote" : "quotes"} within your budget.`
+                      : "No bookable quotes within your budget."}
+                  </strong>
+                  <p>
+                    {lowest !== null
+                      ? `The lowest quoted price is $${(lowest / 100).toFixed(2)} — $${(((job.brief?.budgetCents ?? 0) - lowest) / 100).toFixed(2)} below your limit. Review the details before choosing.`
+                      : "You can inspect each transcript, or start another request with a different brief."}
+                  </p>
+                </div>
+              )}
               <QuoteBoard
                 rows={rows}
                 budget={job.brief?.budgetCents ?? 0}
@@ -253,10 +325,22 @@ export function JobView({ id, demo }: { id: string; demo: boolean }) {
                 payment={payment}
                 onListen={listen}
                 onBook={book}
+                windowStart={job.brief?.windowStart}
+                windowEnd={job.brief?.windowEnd}
               />
               <p className="small" style={{ marginTop: 12 }}>
-                Prices are quoted by the business. Lowest price first; uncertain
-                quotes are shown last. Scroll across for details and booking.
+                {simulatedCalls
+                  ? "Prices and ratings come from simulated demo providers. "
+                  : "Prices are quoted by the business. "}
+                Price order by default; uncertain quotes are shown last.{" "}
+                <span className="desktop-board-hint">
+                  Scroll across for all comparison columns.
+                </span>
+              </p>
+              <p className="connection-note" role="status">
+                {connected
+                  ? "Connected · updates appear automatically"
+                  : "Reconnecting to live updates · checking saved progress every 5 seconds"}
               </p>
             </section>
             <aside className="payment-panel">
@@ -351,7 +435,8 @@ export function JobView({ id, demo }: { id: string; demo: boolean }) {
           callId={transcript.call.id}
           name={transcript.name}
           revision={revision}
-          onClose={() => setTranscript(null)}
+          simulated={simulatedCalls}
+          onClose={closeTranscript}
         />
       )}
     </main>

@@ -1,19 +1,24 @@
 import { RequestForm } from "../components/RequestForm";
+import { demoConfiguration } from "../lib/demo";
 export default function Page() {
+  const mode = demoConfiguration();
   return (
     <div className="shell">
-      <main className="home">
+      <main className="home" id="main">
         <section>
           <h1>
             One request.
             <br />
-            Consider it called.
+            Your repair, sorted.
           </h1>
           <p className="intro">
-            Tell us what needs fixing. We’ll call local businesses, bring back
-            their quotes, and leave the choice to you.
+            Tell us what needs fixing. Compare the quotes, choose who gets the
+            job, and release payment only when you confirm the work is done.
           </p>
-          <RequestForm bookingAvailable={process.env.HOSTED_UI_ONLY !== "1"} />
+          <RequestForm
+            bookingAvailable={process.env.HOSTED_UI_ONLY !== "1"}
+            demo={mode.enabled}
+          />
         </section>
         <aside className="how">
           <h2 className="how-title">From to-do to taken care of.</h2>
@@ -23,8 +28,12 @@ export default function Page() {
               "The repair, your location, a time window, and a budget. One brief is all it takes.",
             ],
             [
-              "We make the calls",
-              "Three demo businesses, called in parallel. Compare the price, availability, and the actual conversation.",
+              mode.simulatedCalls
+                ? "Compare the conversations"
+                : "We make the calls",
+              mode.simulatedCalls
+                ? "Three simulated providers. Two quotes and one decline. See the price, availability, and the transcript behind each answer."
+                : "Compare the price, availability, and conversation from configured test providers.",
             ],
             [
               "Choose. Then confirm.",
@@ -42,15 +51,16 @@ export default function Page() {
           <div className="promise">
             <h3>Your money waits for your say-so.</h3>
             <p>
-              A booking places a hold, not a charge. Cancel before completion to
-              release it. This build uses PayPal sandbox funds only.
+              First, approve a booking to hold funds. Then, confirm the
+              completed work to release payment. You review the recipient before
+              anything is paid out. Sandbox funds only.
             </p>
           </div>
         </aside>
       </main>
       <footer className="footer">
         <span>Switchboard · Home repairs, without the phone tag.</span>
-        <span>Built for the PayPal AI Hackathon · Demo</span>
+        <a href="/demo">How to try the demo</a>
       </footer>
     </div>
   );

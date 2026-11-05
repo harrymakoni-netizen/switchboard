@@ -1,5 +1,8 @@
 # Decisions
 
+- 2026-11-05: After reviewing the official hackathon requirements, the owner delegated preparation of a stronger submission. The release baseline is a clearly labeled simulation of business discovery/conversations, with the existing hosted Gemini and PayPal sandbox integrations. Live voice is unfinished and is not a release gate for this selected demo scope. This updates the original phone-bot assumption without claiming organizer approval of a particular submission.
+- 2026-11-05: Desktop keeps AG Grid comparison; mobile uses full-detail provider rows so booking and transcript controls require no sideways scrolling. Requested-time-window conflicts are flagged but the buyer may consciously choose a later quote. Server budget, recipient, approval, sandbox, and idempotency boundaries are unchanged.
+
 - Use the supplied scope as repository AGENTS.md. Preserve milestone gates; do not claim credential-dependent milestones passed without evidence.
 - Render and the specified Next.js/Postgres stack take precedence over Sites hosting.
 - Use a real local Postgres 16 in mock mode; offline means external services are mocked, not persistence.

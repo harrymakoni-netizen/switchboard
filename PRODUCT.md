@@ -12,7 +12,7 @@ User-specified: Next.js App Router, React 18, Tailwind, AG Grid Community, Fasti
 
 ## Users and purpose
 
-Buyers arranging home repairs in Harare. They give one request, compare phone quotes, approve a PayPal sandbox hold, and release payment only after confirming completion. Hackathon judges use configured business bots; offline mode uses deterministic service mocks.
+Buyers arranging home repairs in Harare. They give one request, compare quotes and their supporting transcripts, approve a PayPal sandbox hold, and release payment only after confirming completion. The selected hackathon demonstration uses configured synthetic providers and scripted conversations, with real Gemini processing and PayPal sandbox integration. Simulated business conversations are labeled in the product. Live telephony and directory discovery remain unfinished. Offline mode uses deterministic service mocks throughout.
 
 ## Constraints
 

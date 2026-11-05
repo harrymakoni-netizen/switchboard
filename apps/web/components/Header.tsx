@@ -16,10 +16,19 @@ export function Header() {
           </svg>
           switchboard
         </a>
-        <span className="nav-note">
-          <span className="dot" />
-          Your call. Our legwork.
-        </span>
+        <div className="nav-links">
+          <span className="nav-note">
+            <span className="dot" />
+            Your call. Our legwork.
+          </span>
+          <a
+            href="https://github.com/harrymakoni-netizen/switchboard"
+            target="_blank"
+            rel="noreferrer"
+          >
+            Source code<span className="sr-only"> (opens a new tab)</span>
+          </a>
+        </div>
       </nav>
     </header>
   );

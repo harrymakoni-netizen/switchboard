@@ -1,0 +1,249 @@
+{
+  "info": {
+    "name": "Switchboard \u00b7 explicit sandbox approvals",
+    "description": "Use Send on individual requests; do not use Run Collection for the payment flow. This project refuses live PayPal mode. No secrets are included. Cookie-based sessions must be retained across requests. Default localhost setup is fully mocked; the hosted browser demo uses PayPal sandbox and Gemini with simulated provider conversations. Payment approvals require human review. No post-response script calls another endpoint. For a complete hosted checkout, use the application UI and /demo walkthrough.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    {
+      "key": "baseUrl",
+      "value": "http://localhost:3000"
+    },
+    {
+      "key": "jobId",
+      "value": ""
+    },
+    {
+      "key": "quoteId",
+      "value": ""
+    },
+    {
+      "key": "callId",
+      "value": ""
+    }
+  ],
+  "item": [
+    {
+      "name": "1 \u00b7 Create a repair brief",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "url": "{{baseUrl}}/api/jobs",
+        "description": "Creates a job in the cookie session. Save the returned jobId. Gemini may ask a follow-up question; answer it with the next request.",
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"request\": \"Fix Mum\\u2019s geyser in Avondale tomorrow, under $120\"\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "if (pm.response.code === 200) { const data = pm.response.json(); if (data.jobId) pm.collectionVariables.set(\"jobId\", data.jobId); }"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "Optional \u00b7 Answer a follow-up",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "url": "{{baseUrl}}/api/jobs/{{jobId}}/answer",
+        "description": "Only if the planner asked a question. Edit the answer before sending.",
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"answer\": \"Avondale, tomorrow, under $120.\"\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "2 \u00b7 Read job and quotes",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": "{{baseUrl}}/api/jobs/{{jobId}}",
+        "description": "Poll manually until QUOTED. Inspect price, availability, inclusions, confidence and decline status. Copy the chosen quoteId and its callId into collection variables; no quote is automatically selected."
+      }
+    },
+    {
+      "name": "3 \u00b7 Read a conversation",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": "{{baseUrl}}/api/jobs/{{jobId}}/calls/{{callId}}/transcript",
+        "description": "Requires a callId from the snapshot. Conversations in the selected demo scope are simulated."
+      }
+    },
+    {
+      "name": "4 \u00b7 APPROVAL ONE: Book the chosen quote",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "url": "{{baseUrl}}/api/jobs/{{jobId}}/book",
+        "description": "Explicit booking approval. Check quoteId and amount first. Hosted mode returns a PayPal sandbox approveUrl. Complete buyer approval in a browser; for the hosted demo, using the browser UI throughout is easiest. Offline mock approval is simulated.",
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"quoteId\": \"{{quoteId}}\"\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "5 \u00b7 Review the payout recipient",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "url": "{{baseUrl}}/api/jobs/{{jobId}}/show-payout-email",
+        "description": "Only after CONFIRMED. Read and verify the returned email before approving completion. This action records recipient review.",
+        "body": {
+          "mode": "raw",
+          "raw": "{}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "6 \u00b7 Skip the demo appointment wait",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "url": "{{baseUrl}}/api/demo/fast-forward",
+        "description": "Demo mode only. Moves a confirmed job to completion review; does not capture or pay out funds.",
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"jobId\": \"{{jobId}}\"\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "7 \u00b7 APPROVAL TWO: Mark done and release",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "url": "{{baseUrl}}/api/jobs/{{jobId}}/done",
+        "description": "Explicit completion and payment approval. Send individually only after reviewing the recipient and confirming completion. This queues sandbox capture and payout. Never run the collection indiscriminately.",
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"done\": true\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "8 \u00b7 Open the receipt",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": "{{baseUrl}}/api/jobs/{{jobId}}/receipt",
+        "description": "After the invoice is PAID and independently verified. Hosted mode may redirect to the PayPal sandbox invoice. Pending preparation may return 202 or 404; review-required returns 409."
+      }
+    },
+    {
+      "name": "Alternative \u00b7 Report unfinished work",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "url": "{{baseUrl}}/api/jobs/{{jobId}}/done",
+        "description": "Use instead of completion approval while AWAITING_COMPLETION. Records an issue and retains an existing authorization without capture.",
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"done\": false,\n  \"note\": \"The repair is not complete.\"\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "Alternative \u00b7 Cancel before capture",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "url": "{{baseUrl}}/api/jobs/{{jobId}}/cancel",
+        "description": "Use instead of payment release. Only supported in cancellable states before capture. Inspect the snapshot for the resulting void record.",
+        "body": {
+          "mode": "raw",
+          "raw": "{}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        }
+      }
+    }
+  ]
+}

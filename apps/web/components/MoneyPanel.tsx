@@ -27,6 +27,34 @@ export function MoneyPanel({
     <>
       <h2>Payment overview</h2>
       <div>
+        <ol className="approval-trail" aria-label="Your payment approvals">
+          <li
+            className={
+              payments.some((p) => p.kind === "authorization") ? "approved" : ""
+            }
+          >
+            <span>1</span>
+            <div>
+              <strong>Approve the booking</strong>
+              <small>
+                {payments.some((p) => p.kind === "authorization")
+                  ? "You approved a funds hold"
+                  : "A hold first. No capture yet."}
+              </small>
+            </div>
+          </li>
+          <li className={captured ? "approved" : ""}>
+            <span>2</span>
+            <div>
+              <strong>Confirm the work</strong>
+              <small>
+                {captured
+                  ? "You approved payment release"
+                  : "Payment waits for your approval"}
+              </small>
+            </div>
+          </li>
+        </ol>
         <div className="money-row">
           <span>Funds held</span>
           <strong>
@@ -60,12 +88,13 @@ export function MoneyPanel({
           <strong>{amount("payout")}</strong>
         </div>
         {invoice && (
-          <p className="small">
+          <div className="receipt-status">
             {invoice.status === "PAID" ? (
               <a
                 href={"/api/jobs/" + invoice.jobId + "/receipt"}
                 target="_blank"
                 rel="noreferrer"
+                className="receipt-link"
               >
                 View receipt
               </a>
@@ -76,24 +105,35 @@ export function MoneyPanel({
                   : "Preparing receipt…"}
               </span>
             )}{" "}
-            {invoice.status === "PAID" && "· PAID"}
-            <span className="ledger-id">{invoice.paypalId}</span>
-          </p>
+            {invoice.status === "PAID" && (
+              <span className="small">
+                Payment recorded · opens in a new tab
+              </span>
+            )}
+          </div>
         )}
-        {payments
-          .filter((p) =>
-            ["authorization", "capture", "payout"].includes(p.kind),
-          )
-          .map((p) => (
-            <span key={p.id} className="ledger-id">
-              {p.kind}: {p.paypalId}
-            </span>
-          ))}
+        {payments.length > 0 && (
+          <details className="payment-activity">
+            <summary>Payment activity · {payments.length} records</summary>
+            <p className="small">
+              Provider references for this job’s sandbox transactions.
+            </p>
+            {payments.map((p) => (
+              <div key={p.id} className="activity-record">
+                <span>
+                  {p.kind} · {p.status}
+                </span>
+                <span className="ledger-id">{p.paypalId}</span>
+              </div>
+            ))}
+          </details>
+        )}
       </div>
       <div>
         {email ? (
           <p className="recipient">
-            Payout will go to <strong>{email}</strong>
+            {payoutPayment ? "Payout recipient" : "Payout will go to"}{" "}
+            <strong>{email}</strong>
           </p>
         ) : ["CONFIRMED", "AWAITING_COMPLETION"].includes(state) ? (
           <button className="secondary" disabled={busy} onClick={onReveal}>

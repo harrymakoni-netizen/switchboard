@@ -1,16 +1,19 @@
 "use client";
-import { useState, type FormEvent } from "react";
+import { useRef, useState, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
 const example = "Fix Mum’s geyser in Avondale tomorrow, under $120";
 export function RequestForm({
   bookingAvailable = true,
+  demo = false,
 }: {
   bookingAvailable?: boolean;
+  demo?: boolean;
 }) {
   const [request, setRequest] = useState("");
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
   const router = useRouter();
+  const input = useRef<HTMLTextAreaElement>(null);
   async function submit(e: FormEvent) {
     e.preventDefault();
     setBusy(true);
@@ -39,7 +42,12 @@ export function RequestForm({
   }
   return (
     <>
-      <form className="request-form" onSubmit={submit}>
+      <form
+        className="request-form"
+        id="request-form"
+        onSubmit={submit}
+        aria-busy={busy}
+      >
         {!bookingAvailable && (
           <p className="empty-note" role="status">
             Preview deployment · Online booking is not available here yet. No
@@ -48,6 +56,7 @@ export function RequestForm({
         )}
         <label htmlFor="request">What needs taking care of?</label>
         <textarea
+          ref={input}
           id="request"
           value={request}
           onChange={(e) => setRequest(e.target.value)}
@@ -55,6 +64,7 @@ export function RequestForm({
           minLength={5}
           maxLength={2000}
           required
+          disabled={busy}
         />
         <div className="form-bottom">
           <span className="small">
@@ -68,9 +78,23 @@ export function RequestForm({
           </button>
         </div>
       </form>
-      <button className="example" onClick={() => setRequest(example)}>
+      <button
+        className="example"
+        disabled={busy}
+        onClick={() => {
+          setRequest(example);
+          input.current?.focus();
+        }}
+      >
         Try: “{example}”
       </button>
+      {demo && (
+        <p className="demo-help">
+          New here? Use the sample repair above.{" "}
+          <a href="/demo">See the walkthrough</a> before trying the two payment
+          approvals.
+        </p>
+      )}
       {error && (
         <p role="alert" className="error">
           {error}

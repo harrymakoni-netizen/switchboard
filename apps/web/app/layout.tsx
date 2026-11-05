@@ -1,21 +1,21 @@
 import type { ReactNode } from "react";
 import "./globals.css";
 import { Header } from "../components/Header";
+import { DemoNotice } from "../components/DemoNotice";
 export const metadata = {
   title: "Switchboard — your call, our legwork",
   description:
-    "Arrange a home repair, compare phone quotes, and choose who gets the job.",
+    "One repair request, clear quotes, and two payment approvals. Explore the Switchboard sandbox demo with simulated providers.",
 };
 export default function Layout({ children }: { children: ReactNode }) {
   return (
     <html lang="en">
       <body>
+        <a className="skip-link" href="#main">
+          Skip to content
+        </a>
         <Header />
-        {process.env.DEMO_MODE === "1" && (
-          <div className="demo-banner">
-            Judge mode · Demo providers · PayPal sandbox only
-          </div>
-        )}
+        <DemoNotice />
         {children}
       </body>
     </html>
