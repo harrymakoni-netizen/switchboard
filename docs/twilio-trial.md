@@ -52,6 +52,8 @@ For the custom call, answer the AI disclosure with yes or keypad 1, then provide
 
 The CLI reserves an ignored state file before calling. Reusing it refuses a second outgoing request. For an uncertain custom-call response, `--status` can recover a call ID that a signed callback already saved. Otherwise check Twilio Logs before deciding whether to make a new test. A queued API result alone does not prove the phone rang or the questionnaire worked.
 
+Rejected requests include Twilio's explanation with configured credentials redacted. A definite HTTP 4xx rejection is saved in the state file so `--status` reports the original error instead of labeling it uncertain. Network failures remain uncertain and are never automatically retried.
+
 Trial API options can differ from full accounts. Twilio's docs describe restricted call-create parameters separately from supported custom TwiML verbs. A successful standard template does not verify custom outbound URLs, callbacks, or time-limit options on this account. If the custom request is rejected, inspect its Twilio error code and Console Custom setup; leave app calls mocked. Do not upgrade or spend money automatically.
 
 ## Enable the app only after a custom test succeeds

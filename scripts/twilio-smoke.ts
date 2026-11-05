@@ -4,7 +4,11 @@ import { mkdir, readFile, writeFile, rename } from "node:fs/promises";
 import { dirname, resolve } from "node:path";
 import { sql, createJob } from "@switchboard/db";
 import { script } from "@switchboard/calls";
-import { TwilioTelephony, twilioConfig } from "../packages/calls/src/twilio";
+import {
+  TwilioTelephony,
+  TwilioTransportError,
+  twilioConfig,
+} from "../packages/calls/src/twilio";
 import { prepareVoice } from "../apps/worker/src/voice";
 import { z } from "zod";
 const args = process.argv.slice(2);
@@ -15,6 +19,7 @@ const stateSchema = z.object({
   providerSid: z.string().optional(),
   jobId: z.string().optional(),
   attempted: z.literal(true),
+  rejection: z.string().optional(),
 });
 async function main() {
   if (args.includes("--help")) {
@@ -30,6 +35,7 @@ async function main() {
   const path = resolve(args[pathArg + 1]);
   if (args.includes("--status")) {
     const state = stateSchema.parse(JSON.parse(await readFile(path, "utf8")));
+    if (state.rejection) throw new Error(state.rejection);
     if (!state.providerSid && state.custom) {
       const [call] =
         await sql`select provider_sid from calls where id=${state.callId}`;
@@ -92,35 +98,48 @@ async function main() {
     });
     await rename(path + ".tmp", path);
   };
-  if (state.custom) {
-    const job = await createJob(
-      randomUUID(),
-      "Twilio test only — no booking or payment.",
-    );
-    state.jobId = job.id;
-    const [business] =
-      await sql`insert into businesses(job_id,name,phone,is_bot) values(${job.id},'Verified test recipient',${to},true) returning id`;
-    await sql`insert into calls(id,job_id,business_id,purpose,status) values(${state.callId},${job.id},${business.id},'quote','dispatching')`;
-    await prepareVoice(state.callId, to, client.config.fromNumber, {
-      purpose: "quote",
-      task: "provide a practice water-heater repair quote for a Switchboard test, not a real service request",
-      location: "Avondale",
-      window: "tomorrow in Harare local time",
-      maxSeconds: 120,
-    });
-    await sql`update voice_sessions set attempted_at=now() where call_id=${state.callId}`;
-    await persist();
-    const result = await client.placeCall({
-      callId: state.callId,
-      to,
-      script: {
-        ...script("quote", "Twilio custom questionnaire test"),
+  try {
+    if (state.custom) {
+      const job = await createJob(
+        randomUUID(),
+        "Twilio test only — no booking or payment.",
+      );
+      state.jobId = job.id;
+      const [business] =
+        await sql`insert into businesses(job_id,name,phone,is_bot) values(${job.id},'Verified test recipient',${to},true) returning id`;
+      await sql`insert into calls(id,job_id,business_id,purpose,status) values(${state.callId},${job.id},${business.id},'quote','dispatching')`;
+      await prepareVoice(state.callId, to, client.config.fromNumber, {
+        purpose: "quote",
+        task: "provide a practice water-heater repair quote for a Switchboard test, not a real service request",
+        location: "Avondale",
+        window: "tomorrow in Harare local time",
         maxSeconds: 120,
-      },
-    });
-    state.providerSid = result.providerSid;
-    await sql`update calls set provider_sid=${state.providerSid} where id=${state.callId} and (provider_sid is null or provider_sid=${state.providerSid})`;
-  } else state.providerSid = (await client.templateTestCall(to)).sid;
+      });
+      await sql`update voice_sessions set attempted_at=now() where call_id=${state.callId}`;
+      await persist();
+      const result = await client.placeCall({
+        callId: state.callId,
+        to,
+        script: {
+          ...script("quote", "Twilio custom questionnaire test"),
+          maxSeconds: 120,
+        },
+      });
+      state.providerSid = result.providerSid;
+      await sql`update calls set provider_sid=${state.providerSid} where id=${state.callId} and (provider_sid is null or provider_sid=${state.providerSid})`;
+    } else state.providerSid = (await client.templateTestCall(to)).sid;
+  } catch (error) {
+    if (
+      error instanceof TwilioTransportError &&
+      error.status &&
+      error.status >= 400 &&
+      error.status < 500
+    ) {
+      state.rejection = error.message;
+      await persist();
+    }
+    throw error;
+  }
   await persist();
   console.log(
     JSON.stringify({

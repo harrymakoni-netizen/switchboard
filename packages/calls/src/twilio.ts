@@ -32,9 +32,10 @@ export class TwilioTransportError extends Error {
   constructor(
     readonly status?: number,
     readonly code?: number,
+    detail?: string,
   ) {
     super(
-      `Twilio request failed${status ? " (HTTP " + status + ")" : "; delivery is uncertain"}${code ? " [" + code + "]" : ""}`,
+      `Twilio request failed${status ? " (HTTP " + status + ")" : "; delivery is uncertain"}${code ? " [" + code + "]" : ""}${detail ? ": " + detail : ""}`,
     );
   }
 }
@@ -116,13 +117,39 @@ export class TwilioTelephony implements Telephony {
     try {
       return await fn();
     } catch (error) {
-      const parsed = z
-        .object({ status: z.number().optional(), code: z.number().optional() })
-        .safeParse(error);
-      throw new TwilioTransportError(
-        parsed.success ? parsed.data.status : undefined,
-        parsed.success ? parsed.data.code : undefined,
-      );
+      const fields = error && typeof error === "object" ? error : {};
+      const number = (key: "status" | "code") => {
+        const value =
+          key in fields ? (fields as Record<string, unknown>)[key] : undefined;
+        if (typeof value !== "number" && typeof value !== "string")
+          return undefined;
+        if (typeof value === "string" && !/^\d+$/.test(value)) return undefined;
+        const result = Number(value);
+        return Number.isSafeInteger(result) && result > 0 ? result : undefined;
+      };
+      const status = number("status");
+      const rawMessage =
+        "message" in fields
+          ? (fields as Record<string, unknown>).message
+          : undefined;
+      // Preserve the provider's explanation, never its request, headers, or credentials.
+      const secrets = [
+        this.config.authToken,
+        encodeURIComponent(this.config.authToken),
+        Buffer.from(
+          `${this.config.accountSid}:${this.config.authToken}`,
+        ).toString("base64"),
+      ];
+      let detail =
+        status && status >= 400 && typeof rawMessage === "string"
+          ? rawMessage
+          : undefined;
+      if (detail) {
+        for (const secret of secrets)
+          detail = detail.split(secret).join("[redacted]");
+        detail = detail.replace(/[\x00-\x1f\x7f]/g, " ").slice(0, 600);
+      }
+      throw new TwilioTransportError(status, number("code"), detail);
     }
   }
   async placeCall(args: PlaceCallArgs) {

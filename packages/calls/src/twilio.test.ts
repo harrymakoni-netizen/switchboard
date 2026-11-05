@@ -77,6 +77,40 @@ it("does not retry an uncertain call creation", async () => {
   ).rejects.toThrow("delivery is uncertain");
   expect(port.createCall).toHaveBeenCalledOnce();
 });
+it("preserves trial rejection details while redacting credentials", async () => {
+  const { client, port } = fixture();
+  const basic = Buffer.from(
+    `${config.accountSid}:${config.authToken}`,
+  ).toString("base64");
+  vi.mocked(port.createCall).mockRejectedValue({
+    status: 400,
+    code: "21215",
+    message: `Unsupported trial parameter. ${config.authToken} Basic ${basic}\n`,
+    request: { secret: "never print this" },
+  });
+  const error = await client
+    .templateTestCall(config.allowedNumbers[0])
+    .catch((e: unknown) => e);
+  expect(error).toMatchObject({ status: 400, code: 21215 });
+  const message = (error as Error).message;
+  expect(message).toContain("Unsupported trial parameter");
+  expect(message).not.toContain(config.authToken);
+  expect(message).not.toContain(basic);
+  expect(message).not.toContain("never print this");
+  expect(message).not.toContain("\n");
+  expect(port.createCall).toHaveBeenCalledOnce();
+});
+it("keeps the HTTP status when a provider returns a null error code", async () => {
+  const { client, port } = fixture();
+  vi.mocked(port.createCall).mockRejectedValue({
+    status: 400,
+    code: null,
+    message: "Custom URL is invalid",
+  });
+  await expect(
+    client.templateTestCall(config.allowedNumbers[0]),
+  ).rejects.toThrow("HTTP 400): Custom URL is invalid");
+});
 it("does not send custom SMS during the limited trial", async () => {
   const { client, port } = fixture();
   await client.sendSms(config.allowedNumbers[0], "booking confirmation");
