@@ -17,6 +17,7 @@ import {
 import {
   ReceiptReviewError,
   receiptNumber,
+  receiptCaptureReference,
   receiptUrl,
   verifyInvoice,
   type ReceiptAgent,
@@ -43,6 +44,7 @@ export class ReceiptToolkitError extends Error {
     super(
       "PayPal invoice operation failed" + (status ? ` (HTTP ${status})` : ""),
     );
+    this.name = "ReceiptToolkitError";
   }
 }
 export function toolkitExecutor(
@@ -285,22 +287,50 @@ export function createReceiptAgent(options: {
               value: fromCents(request.amountCents),
             },
           };
+          const record = async (
+            value: Record<string, unknown>,
+            suffix = "record_payment_for_invoice",
+          ) => {
+            try {
+              await invoke("record_payment_for_invoice", value, suffix);
+            } catch (error) {
+              if (
+                !(error instanceof ReceiptToolkitError) ||
+                error.status !== 422 ||
+                invoice!.status !== "DRAFT"
+              )
+                throw error;
+              // Activate without mailing an unpaid bill, then retry the same fixed record.
+              await invoke(
+                "send_invoice",
+                { invoice_id: invoice!.id, send_to_recipient: false },
+                "activate_invoice",
+              );
+              await invoke("record_payment_for_invoice", value, suffix);
+            }
+          };
           try {
-            await invoke("record_payment_for_invoice", payload);
+            await record(payload);
           } catch (error) {
-            if (
-              !(error instanceof ReceiptToolkitError) ||
-              error.status !== 422 ||
-              invoice!.status !== "DRAFT"
-            )
+            if (!(error instanceof ReceiptToolkitError) || error.status !== 404)
               throw error;
-            // Some invoice accounts require activation before recording payment. Do not email an unpaid bill.
-            await invoke(
-              "send_invoice",
-              { invoice_id: invoice!.id, send_to_recipient: false },
-              "activate_invoice",
-            );
-            await invoke("record_payment_for_invoice", payload);
+            await read();
+            if (["PAID", "MARKED_AS_PAID"].includes(invoice!.status)) {
+              verifyInvoice(invoice!, request, context, true);
+            } else {
+              // Some invoicing accounts cannot associate a Checkout capture directly.
+              // Record the already verified payment by a fixed, independently checked reference.
+              await record(
+                {
+                  invoice_id: invoice!.id,
+                  payment_date: context.paidAt.slice(0, 10),
+                  method: "OTHER",
+                  note: receiptCaptureReference(request),
+                  amount: payload.amount,
+                },
+                "record_verified_capture_reference",
+              );
+            }
           }
           await read();
           verifyInvoice(invoice!, request, context, true);

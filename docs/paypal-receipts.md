@@ -1,6 +1,8 @@
 # PayPal sandbox invoice receipts
 
-After an approved capture, the worker uses Gemini and `@paypal/agent-toolkit@1.11.0` to prepare the buyer's invoice receipt. It never creates another payment. The toolkit currently bundles AI SDK 4; a small adapter exposes its invoice execution through the application's AI SDK 7 `ToolLoopAgent`.
+After an approved capture, the worker uses `@paypal/agent-toolkit@1.11.0` to prepare the buyer's invoice receipt. It never creates another payment. The three fixed invoice steps are server-orchestrated in the hosted worker; the optional model-driven implementation remains available and tested. Planning and quote extraction still use Gemini.
+
+The server independently reads the completed capture and approved order before invoice work. If invoicing cannot link a Checkout capture directly (404), it can record that already verified payment using method OTHER and an exact server-generated job/capture reference in the transaction note. Verification accepts that record only when its note, amount, buyer, invoice reference, paid status, and zero balance match. An arbitrary manually marked invoice is not proof of capture.
 
 ## Boundaries
 

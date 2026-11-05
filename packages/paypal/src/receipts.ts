@@ -53,6 +53,7 @@ export const invoiceSchema = z.object({
           z.object({
             payment_id: z.string().optional(),
             method: z.string().optional(),
+            note: z.string().optional(),
             amount: z
               .object({ currency_code: z.string(), value: z.string() })
               .optional(),
@@ -72,6 +73,9 @@ export interface ReceiptProvider {
   getReceiptInvoice(invoiceId: string): Promise<ReceiptInvoice>;
 }
 export class ReceiptReviewError extends Error {}
+export function receiptCaptureReference(request: ReceiptRequest) {
+  return `Switchboard job ${request.jobId}; verified PayPal capture ${request.captureId}.`;
+}
 export function receiptNumber(jobId: string) {
   return "SB-" + createHash("sha256").update(jobId).digest("hex").slice(0, 22);
 }
@@ -126,8 +130,9 @@ export function verifyInvoice(
       toCents(invoice.due_amount.value) !== 0 ||
       !invoice.payments?.transactions?.some(
         (p) =>
-          p.payment_id === request.captureId &&
-          p.method === "PAYPAL" &&
+          ((p.payment_id === request.captureId && p.method === "PAYPAL") ||
+            (p.method === "OTHER" &&
+              p.note === receiptCaptureReference(request))) &&
           p.amount?.currency_code === "USD" &&
           toCents(p.amount.value) === request.amountCents,
       ))

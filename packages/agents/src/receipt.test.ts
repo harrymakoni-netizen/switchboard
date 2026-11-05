@@ -5,6 +5,7 @@ import { APICallError } from "ai";
 import { PayPalAgentToolkit } from "@paypal/agent-toolkit/ai-sdk";
 import {
   receiptNumber,
+  receiptCaptureReference,
   ReceiptReviewError,
   type ReceiptInvoice,
   type ReceiptProgress,
@@ -200,6 +201,60 @@ it("can execute the fixed receipt workflow without an AI request or Gemini key",
     "send_invoice",
   ]);
   expect(f.progress.at(-1)).toMatchObject({ status: "PAID", verified: true });
+});
+it("records a fixed verified-capture reference when direct invoice linkage is unavailable", async () => {
+  const f = fixture();
+  const execute: InvoiceExecutor = async (name, payload, key) => {
+    if (name === "record_payment_for_invoice" && payload.method === "PAYPAL")
+      throw new ReceiptToolkitError(404);
+    const result = await f.execute(name, payload, key);
+    if (name === "record_payment_for_invoice")
+      f.invoice!.payments!.transactions = [
+        {
+          payment_id: "EXTERNAL-TEST",
+          method: "OTHER",
+          note: String(payload.note),
+          amount: { currency_code: "USD", value: "110.00" },
+        },
+      ];
+    return result;
+  };
+  await createReceiptAgent({
+    provider: f.provider,
+    execute,
+    serverOrchestrated: true,
+  })(f.request, f.checkpoint);
+  expect(f.progress.at(-1)).toMatchObject({ status: "PAID", verified: true });
+  expect(
+    f.operations.find((o) => o.name === "record_payment_for_invoice")?.payload,
+  ).toMatchObject({
+    method: "OTHER",
+    note: receiptCaptureReference(f.request),
+    amount: { currency_code: "USD", value: "110.00" },
+  });
+});
+it("rejects an external paid record without the exact verified-capture reference", async () => {
+  const f = fixture();
+  f.invoice = f.makeInvoice();
+  f.invoice.status = "PAID";
+  f.invoice.due_amount!.value = "0.00";
+  f.invoice.payments = {
+    transactions: [
+      {
+        method: "OTHER",
+        note: "Different job or capture",
+        amount: { currency_code: "USD", value: "110.00" },
+      },
+    ],
+  };
+  await expect(
+    createReceiptAgent({
+      provider: f.provider,
+      execute: f.execute,
+      serverOrchestrated: true,
+    })(f.request, f.checkpoint),
+  ).rejects.toThrow("Invoice payment does not match");
+  expect(f.execute).not.toHaveBeenCalled();
 });
 it("converts toolkit JSON error results into failures instead of success", async () => {
   const toolkit = new PayPalAgentToolkit({
