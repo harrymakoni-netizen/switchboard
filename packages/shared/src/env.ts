@@ -33,6 +33,7 @@ export function loadEnv(
       VOICE_PROVIDER: z.string().default("twilio-gather"),
       MOCK_LLM: z.enum(["0", "1"]).default("0"),
       GEMINI_MODEL: z.string().trim().min(1).default(DEFAULT_GEMINI_MODEL),
+      PARTNER_RESEARCH_MODE: z.enum(["off", "mock", "live"]).default("off"),
       MOCK_PARTNERS: z.enum(["0", "1"]).default("0"),
     })
     .parse(normalized);

@@ -36,13 +36,21 @@ export async function getJob(id: string): Promise<Job> {
 }
 export async function snapshot(id: string): Promise<Snapshot> {
   const job = await getJob(id);
-  const [businesses, calls, quotes, payments] = await Promise.all([
+  const [businesses, calls, quotes, payments, research] = await Promise.all([
     sql`select *,rating::float8 as rating from businesses where job_id=${id} order by name`,
     sql`select id,job_id,business_id,purpose,provider_sid,status,started_at,ended_at,consent_to_record,recording_url from calls where job_id=${id}`,
     sql`select q.*,q.confidence::float8 as confidence from quotes q join businesses b on b.id=q.business_id where b.job_id=${id}`,
     sql`select * from payments where job_id=${id} order by created_at`,
+    sql`select payload from events where job_id=${id} and type='partners.updated' order by id desc limit 1`,
   ]);
-  return { job, businesses, calls, quotes, payments } as unknown as Snapshot;
+  return {
+    job,
+    businesses,
+    calls,
+    quotes,
+    payments,
+    partnerResearch: research[0]?.payload ?? null,
+  } as unknown as Snapshot;
 }
 export async function emit(
   jobId: string,

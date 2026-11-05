@@ -25,7 +25,7 @@ To test the other outcomes, **Cancel booking** requests voiding before capture; 
 | Invoice receipt | PayPal invoice workflow, independently verified before display | Printable mock receipt |
 | Discovery and conversations | Configured providers and scripted transcripts | Same simulation |
 
-Live phone conversations and business-directory discovery remain unfinished and are not presented as working features. Twilio placed calls in a separate integration test, but the custom questionnaire has not been verified. See [telephony status](docs/twilio-trial.md).
+Live phone conversations remain unfinished. Kernel directory discovery and Channel3 parts-price research are implemented behind an optional configuration flag; live partner acceptance awaits keys and a verified directory. The default demo still uses simulated businesses. See [partner setup and verification](docs/partner-research.md). Twilio placed calls in a separate integration test, but the custom questionnaire has not been verified. See [telephony status](docs/twilio-trial.md).
 
 ## Run locally
 
@@ -137,3 +137,5 @@ MOCK_LLM=0
 The model is configurable; use a Gemini model available to your Google account. The default is the latest Flash text model listed by the model catalog and installed provider at the time of this change (2026-11-03), chosen for brief planning and extraction latency. This setup calls Google directly with the key supplied to `createGoogle`; it does not require an AI Gateway account. Old provider credentials are no longer used.
 
 Both the planner's brief/follow-up union and the finder's business array are sent as JSON schemas. Invalid output is rejected, with one validation retry. Temporary HTTP 500/502/503/504 failures can switch once to the fallback model; authentication and quota errors do not. Structured-output calls have a 30-second timeout. Live hosted planning and quote extraction passed; offline tests exercise Google's provider with in-process HTTP stubs.
+
+Optional hackathon partner research: [Kernel + Channel3 configuration](docs/partner-research.md). Set `PARTNER_RESEARCH_MODE=mock` for offline research or `live` with worker credentials and an approved directory URL. Keep demo quotes separate from real directory leads. The previously recorded demo does not show these new integrations.

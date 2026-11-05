@@ -11,6 +11,9 @@ importers:
       '@ai-sdk/google':
         specifier: ^4.0.109
         version: 4.0.109(zod@3.25.76)
+      '@onkernel/sdk':
+        specifier: ^0.140.0
+        version: 0.140.0
       '@paypal/agent-toolkit':
         specifier: 1.11.0
         version: 1.11.0(react@18.3.1)(supports-color@8.1.1)(ws@8.22.0)
@@ -889,6 +892,9 @@ packages:
   '@nodelib/fs.walk@1.2.8':
     resolution: {integrity: sha512-oGB+UxlgWcgQkgwo8GcEGwemoTFt3FIO9ababBmaGwXIoBKZ+GTy0pP185beGg7Llih/NSHSV2XAs1lnznocSg==}
     engines: {node: '>= 8'}
+
+  '@onkernel/sdk@0.140.0':
+    resolution: {integrity: sha512-jWiW+YXIrqsCOMXtl8dkkoyXy0iRodgeym1d9igMNEZugmtUHzhxQIP80MgNBRBijOjjVJiJeI26u6UWdtz5Bw==}
 
   '@opentelemetry/api@1.10.0':
     resolution: {integrity: sha512-lMkyes8iHrG+mk6WH7X70MdCLI2RS0FwNBY1PyQ8UemaijE2m5mv5A0Niy3HtbYTFrgkUEQjFMXmSAk2hQDuPQ==}
@@ -3912,6 +3918,8 @@ snapshots:
     dependencies:
       '@nodelib/fs.scandir': 2.1.5
       fastq: 1.20.3
+
+  '@onkernel/sdk@0.140.0': {}
 
   '@opentelemetry/api@1.10.0':
     optional: true

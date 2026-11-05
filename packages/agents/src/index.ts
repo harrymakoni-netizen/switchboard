@@ -33,7 +33,7 @@ export const extractorPrompt =
 export const plannerPrompt =
   "planner: " +
   untrusted +
-  " Parse a home_repair JobBrief: task, category=home_repair, location, windowStart, windowEnd, budgetCents (integer cents), currency=USD. Missing task/location/window/budget: return ONLY {followUpQuestion:string}, exactly one question about one missing field. Timezone Africa/Harare. Dates must be future.";
+  " Parse a home_repair JobBrief: task, category=home_repair, location, windowStart, windowEnd, budgetCents (integer cents), currency=USD. Missing task/location/window/budget: return ONLY {followUpQuestion:string}, exactly one question about one missing field. Timezone Africa/Harare. Dates must be future. Include partHint (a short replacement-part search term) only when the request identifies a part; otherwise set partHint to null. Do not diagnose an unknown fault.";
 export function mockPlan(
   raw: string,
   now = new Date(),
@@ -77,6 +77,7 @@ export function mockPlan(
     windowEnd: local + "T19:00:00+02:00",
     budgetCents: toCents(budget[1]),
     currency: "USD",
+    partHint: /element/i.test(raw) ? "water heater replacement element" : null,
   });
 }
 export function mockExtract(input: string): Extraction {
@@ -182,7 +183,7 @@ export const foundBusinessSchema = z.object({
   rating: z.number().min(0).max(5).nullable(),
   sourceUrl: z.string().url().nullable(),
 });
-export const foundBusinessesSchema = z.array(foundBusinessSchema).min(3).max(6);
+export const foundBusinessesSchema = z.array(foundBusinessSchema).max(6);
 export async function findBusinesses(
   llm: LLM,
   brief: JobBrief,
@@ -192,7 +193,7 @@ export async function findBusinesses(
     system:
       "finder: " +
       untrusted +
-      " Return JSON array of 3–6 businesses: name, phone E.164 (+263 default), rating (number or null), sourceUrl (URL or null). Use only directory evidence.",
+      " Return JSON array of up to 6 businesses, preferably 3–6 when supported by evidence: name, phone E.164 (+263 default), rating (number or null), sourceUrl (URL or null). Use only directory evidence. Return fewer businesses or an empty array when evidence is insufficient; never invent one to meet a count.",
     user:
       JSON.stringify(brief) +
       "\n<untrusted_data>" +

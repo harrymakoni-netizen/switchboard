@@ -18,6 +18,7 @@ export default {
     "@switchboard/engine",
     "@switchboard/agents",
     "@switchboard/paypal",
+    "@switchboard/partners",
   ],
   experimental: { cpus: 2 },
 };

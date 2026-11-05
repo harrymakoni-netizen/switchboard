@@ -11,6 +11,7 @@ const QuoteBoard = dynamic(
     loading: () => <p className="empty-note">Opening the quote board…</p>,
   },
 );
+import { PartnerResearch } from "./PartnerResearch";
 import { JobStepper } from "./JobStepper";
 import { MoneyPanel } from "./MoneyPanel";
 import { TranscriptDrawer } from "./TranscriptDrawer";
@@ -18,10 +19,12 @@ export function JobView({
   id,
   demo,
   simulatedCalls,
+  researchEnabled = false,
 }: {
   id: string;
   demo: boolean;
   simulatedCalls: boolean;
+  researchEnabled?: boolean;
 }) {
   const [data, setData] = useState<Snapshot | null>(null);
   const [error, setError] = useState("");
@@ -50,6 +53,7 @@ export function JobView({
       "connected",
       "state.changed",
       "business.found",
+      "partners.updated",
       "call.status",
       "quote.created",
       "payment.updated",
@@ -337,6 +341,13 @@ export function JobView({
                   Scroll across for all comparison columns.
                 </span>
               </p>
+              {(researchEnabled || data.partnerResearch) && (
+                <PartnerResearch
+                  data={data.partnerResearch}
+                  busy={busy}
+                  onStart={() => void post("research")}
+                />
+              )}
               <p className="connection-note" role="status">
                 {connected
                   ? "Connected · updates appear automatically"

@@ -38,6 +38,12 @@ import {
   smsTemplate,
   businessHours,
 } from "@switchboard/calls";
+import {
+  discoverBusinesses,
+  KernelDirectory,
+  researchJob,
+  pendingResearch,
+} from "@switchboard/partners";
 import { bots } from "@switchboard/bots";
 const env = loadEnv();
 const paypal =
@@ -95,15 +101,25 @@ await boss.start();
 async function runFinding(jobId: string) {
   const job = await getJob(jobId);
   if (job.state !== "FINDING" || !job.brief) return;
-  if (env.MOCK_PARTNERS !== "1" && env.DEMO_MODE !== "1")
-    throw new Error("Real finder requires M7 integration");
-  for (const bot of bots(job.brief)) {
+  if (env.PARTNER_RESEARCH_MODE !== "off") await enqueue("runResearch", jobId);
+  const demoDiscovery = env.MOCK_PARTNERS === "1" || env.DEMO_MODE === "1";
+  const found = demoDiscovery
+    ? bots(job.brief)
+    : (
+        await discoverBusinesses(
+          job.brief,
+          process.env.DIRECTORY_URL_TEMPLATE!,
+          new KernelDirectory(),
+          llm,
+        )
+      ).businesses;
+  for (const bot of found) {
     const existing =
       await sql`select id from businesses where job_id=${jobId} and name=${bot.name}`;
     if (existing.length) continue;
     const [b] = await sql<
       Business[]
-    >`insert into businesses(job_id,name,phone,rating,is_bot) values(${jobId},${bot.name},${bot.phone},${env.MOCK_TELEPHONY === "1" ? bot.rating : null},${env.MOCK_TELEPHONY === "1"}) returning *,rating::float8 as rating`;
+    >`insert into businesses(job_id,name,phone,rating,is_bot,source_url) values(${jobId},${bot.name},${bot.phone},${demoDiscovery && env.MOCK_TELEPHONY === "1" ? bot.rating : null},${demoDiscovery && env.MOCK_TELEPHONY === "1"},${"sourceUrl" in bot ? bot.sourceUrl : null}) returning *,rating::float8 as rating`;
     await emit(jobId, "business.found", b);
   }
   const [count] =
@@ -117,6 +133,14 @@ async function runCalls(jobId: string) {
     Business[]
   >`select * from businesses where job_id=${jobId}`;
   const personas = bots(job.brief);
+  if (env.MOCK_TELEPHONY === "1" && businesses.some((b) => !b.isBot)) {
+    await emit(jobId, "notice", {
+      message:
+        "Directory businesses are research leads only. No calls were placed or service quotes invented.",
+    });
+    await transition(jobId, { type: "CALLS_FINISHED" });
+    return;
+  }
   await parallelCalls(
     businesses.map((b) => async (signal) => {
       let [call] = await sql<
@@ -131,7 +155,6 @@ async function runCalls(jobId: string) {
         if (quote) return;
       }
       const bot = personas.find((p) => p.name === b.name);
-      if (!bot) throw new Error("Unknown mock bot");
       try {
         if (env.MOCK_TELEPHONY === "0") {
           if (env.DEMO_MODE !== "1" && !businessHours()) {
@@ -157,7 +180,8 @@ async function runCalls(jobId: string) {
             },
             signal,
           );
-        } else if (!["completed", "declined"].includes(call.status))
+        } else if (!["completed", "declined"].includes(call.status)) {
+          if (!bot) throw new Error("Unknown mock bot");
           await mockTel.conversation(
             {
               callId: call.id,
@@ -185,6 +209,7 @@ async function runCalls(jobId: string) {
             550,
             signal,
           );
+        }
         const [finished] = await sql<
           Call[]
         >`select * from calls where id=${call.id}`;
@@ -376,11 +401,35 @@ const receiptAgent =
     : undefined;
 const money = createMoneyEngine({ paypal, env, enqueue, tel, receiptAgent });
 await money.restore();
+async function runResearch(jobId: string) {
+  const job = await getJob(jobId);
+  if (!job.brief || env.PARTNER_RESEARCH_MODE === "off") return;
+  const [last] =
+    await sql`select payload from events where job_id=${jobId} and type='partners.updated' order by id desc limit 1`;
+  if (
+    last &&
+    last.payload.kernel.status !== "pending" &&
+    last.payload.channel3.status !== "pending"
+  )
+    return;
+  await emit(
+    jobId,
+    "partners.updated",
+    pendingResearch(env.PARTNER_RESEARCH_MODE),
+  );
+  const research = await researchJob(
+    job.brief,
+    { ...process.env, PARTNER_RESEARCH_MODE: env.PARTNER_RESEARCH_MODE },
+    llm,
+  );
+  await emit(jobId, "partners.updated", research);
+}
 const handlers: Record<
   string,
   (jobId: string, payload?: { eventId?: string }) => Promise<void>
 > = {
   runFinding,
+  runResearch,
   runCalls,
   createOrder: money.createOrder,
   confirmCall,
@@ -480,6 +529,11 @@ app.get("/health", async () => ({
     receipts: receiptAgent ? "paypal-invoice" : "mock",
     telephony: env.MOCK_TELEPHONY === "1" ? "mock" : "twilio-gather",
     twilioConfigured: Boolean(configuredTwilio),
+    research: env.PARTNER_RESEARCH_MODE,
+    kernelConfigured: Boolean(
+      process.env.KERNEL_API_KEY && process.env.DIRECTORY_URL_TEMPLATE,
+    ),
+    channel3Configured: Boolean(process.env.CHANNEL3_API_KEY),
   },
 }));
 app.addHook("preHandler", async (req, reply) => {

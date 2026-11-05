@@ -4,6 +4,8 @@ import { sql, createJob, snapshot } from "@switchboard/db";
 import { transition, showPayoutEmail } from "@switchboard/engine";
 import { MockLLM, GeminiLLM, plan } from "@switchboard/agents";
 import { receiptUrl } from "@switchboard/paypal";
+import { pendingResearch } from "@switchboard/partners";
+import { emit } from "@switchboard/db";
 import { ownJob, runtime, session } from "../../../lib/server";
 export const dynamic = "force-dynamic";
 type Context = { params: { segments?: string[] } };
@@ -48,6 +50,35 @@ async function handle(req: NextRequest, { params }: Context) {
     const id = z.string().uuid().parse(parts[1]);
     const job = await ownJob(id);
     const action = parts[2];
+    if (req.method === "POST" && action === "research") {
+      if (env.PARTNER_RESEARCH_MODE === "off")
+        return new Response(null, { status: 404 });
+      if (!job.brief)
+        return NextResponse.json(
+          { error: "Finish the repair brief first." },
+          { status: 400 },
+        );
+      const mode = env.PARTNER_RESEARCH_MODE;
+      const queued = await sql.begin(async (tx) => {
+        await tx`select id from jobs where id=${id} for update`;
+        const [last] =
+          await tx`select payload, created_at from events where job_id=${id} and type='partners.updated' order by id desc limit 1`;
+        if (last && Date.now() - new Date(last.createdAt).getTime() < 60000)
+          return false;
+        await emit(id, "partners.updated", pendingResearch(mode), tx);
+        await tx`insert into effects(job_id,name) values(${id},'runResearch')`;
+        return true;
+      });
+      return queued
+        ? NextResponse.json({ ok: true }, { status: 202 })
+        : NextResponse.json(
+            {
+              error:
+                "Research is already running or was just checked. Please wait a minute before retrying.",
+            },
+            { status: 409 },
+          );
+    }
     if (
       req.method === "GET" &&
       action === "diagnostics" &&

@@ -116,6 +116,7 @@ export interface Payment {
   createdAt: string;
 }
 export interface Snapshot {
+  partnerResearch?: import("./research").PartnerResearch | null;
   job: Job;
   businesses: Business[];
   calls: Omit<Call, "transcript">[];
