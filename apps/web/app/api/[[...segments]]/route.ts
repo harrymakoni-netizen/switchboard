@@ -48,6 +48,60 @@ async function handle(req: NextRequest, { params }: Context) {
     const id = z.string().uuid().parse(parts[1]);
     const job = await ownJob(id);
     const action = parts[2];
+    if (
+      req.method === "GET" &&
+      action === "diagnostics" &&
+      env.DEMO_MODE === "1"
+    ) {
+      // ownJob above is mandatory: never expose another session's job or raw SDK errors.
+      const records =
+        await sql`select state, output from pgboss.job where name='receipt' and data->>'jobId'=${id} order by created_on desc limit 5`;
+      const diagnostics = records.map((row) => {
+        const error = z
+          .object({
+            name: z.string().optional(),
+            message: z.string().optional(),
+            status: z.number().optional(),
+          })
+          .safeParse(row.output);
+        const value = error.success ? error.data : {};
+        let issues: { path: unknown; code: unknown; expected: unknown }[] = [];
+        try {
+          const parsed: unknown = JSON.parse(value.message ?? "");
+          const schema = z.array(
+            z.object({
+              path: z.array(
+                z.union([z.string().regex(/^[A-Za-z_]+$/), z.number()]),
+              ),
+              code: z.string(),
+              expected: z.string().optional(),
+            }),
+          );
+          const checked = schema.safeParse(parsed);
+          if (checked.success)
+            issues = checked.data.map((issue) => ({
+              path: issue.path,
+              code: issue.code,
+              expected: issue.expected,
+            }));
+        } catch {}
+        const http =
+          value.status ?? Number(value.message?.match(/HTTP (\d{3})/)?.[1]);
+        return {
+          queueState: row.state,
+          errorClass: value.name?.match(/^[A-Za-z][A-Za-z0-9_]{0,70}$/)?.[0],
+          httpStatus:
+            Number.isInteger(http) && http >= 400 && http < 600
+              ? http
+              : undefined,
+          validationIssues: issues,
+        };
+      });
+      return NextResponse.json(
+        { receipt: diagnostics },
+        { headers: { "cache-control": "no-store" } },
+      );
+    }
     if (req.method === "GET" && action === "receipt") {
       const data = await snapshot(id);
       const invoice = data.payments.find((p) => p.kind === "invoice");
