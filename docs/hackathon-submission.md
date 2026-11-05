@@ -24,7 +24,7 @@ Two explicit approvals govern payment. Booking creates a PayPal sandbox authoriz
 
 Next.js and React power the interface, with AG Grid Community on desktop and an accessible mobile quote view. A Fastify worker and pg-boss perform durable background work against Postgres. Gemini produces schema-validated briefs and extracts prices, availability, inclusions, and guarantees from transcript text. Unknown values stay unknown.
 
-The server-side payment engine owns authorization, capture, void, and payout. These actions are not exposed as AI tools. State transitions, amount and recipient guards, transactional outbox effects, provider idempotency keys, verified webhooks, and recovery polling protect the payment sequence. An invoice-only PayPal Agent Toolkit workflow prepares the receipt; the server independently verifies it before presenting it.
+The server-side payment engine owns authorization, capture, void, and payout. These actions are not exposed as AI tools. State transitions, amount and recipient guards, transactional outbox effects, provider idempotency keys, verified webhooks, and recovery polling protect the payment sequence. An invoice-only PayPal Agent Toolkit workflow prepares the receipt; the server independently verifies it before presenting it. In the hosted worker the three fixed invoice steps are server-orchestrated, so receipt delivery does not require another Gemini request. Planning and quote extraction use Gemini.
 
 ## What to emphasize
 

@@ -127,10 +127,11 @@ export function createReceiptAgent(options: {
   execute?: InvoiceExecutor;
   model?: LanguageModel;
   fallbackModel?: LanguageModel;
+  serverOrchestrated?: boolean;
 }): ReceiptAgent {
   assertSandboxMode();
   const apiKey = process.env.GEMINI_API_KEY?.trim();
-  if (!options.model && !apiKey)
+  if (!options.serverOrchestrated && !options.model && !apiKey)
     throw new Error(
       "GEMINI_API_KEY is required for PayPal receipt generation.",
     );
@@ -336,6 +337,17 @@ export function createReceiptAgent(options: {
         }),
       }),
     };
+    if (options.serverOrchestrated) {
+      // These three steps have no model-chosen arguments. Keep provider checks,
+      // checkpoints and toolkit restrictions, without an unnecessary LLM dependency.
+      for (const name of invoiceToolNames) {
+        await tools[name].execute!(
+          {},
+          { toolCallId: request.jobId + ":" + name, messages: [], context: {} },
+        );
+      }
+      return;
+    }
     const run = async (languageModel: LanguageModel) => {
       const agent = new ToolLoopAgent({
         model: languageModel,

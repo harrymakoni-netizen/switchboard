@@ -372,7 +372,7 @@ async function completionCall(jobId: string) {
 }
 const receiptAgent =
   paypal instanceof HttpPayPal
-    ? createReceiptAgent({ provider: paypal })
+    ? createReceiptAgent({ provider: paypal, serverOrchestrated: true })
     : undefined;
 const money = createMoneyEngine({ paypal, env, enqueue, tel, receiptAgent });
 await money.restore();

@@ -186,6 +186,21 @@ it("configures the actual PayPal toolkit with only three invoice capabilities", 
     [...invoiceToolNames].sort(),
   );
 });
+it("can execute the fixed receipt workflow without an AI request or Gemini key", async () => {
+  vi.stubEnv("GEMINI_API_KEY", "");
+  const f = fixture();
+  await createReceiptAgent({
+    provider: f.provider,
+    execute: f.execute,
+    serverOrchestrated: true,
+  })(f.request, f.checkpoint);
+  expect(f.operations.map((o) => o.name)).toEqual([
+    "create_invoice",
+    "record_payment_for_invoice",
+    "send_invoice",
+  ]);
+  expect(f.progress.at(-1)).toMatchObject({ status: "PAID", verified: true });
+});
 it("converts toolkit JSON error results into failures instead of success", async () => {
   const toolkit = new PayPalAgentToolkit({
     clientId: "test",
