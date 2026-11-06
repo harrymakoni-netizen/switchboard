@@ -8,6 +8,14 @@ Turn one home-repair request into comparable quotes, a booking, and a verified P
 
 Built for the **PayPal AI Hackathon**.
 
+## Submission guide
+
+- **Public source:** [harrymakoni-netizen/switchboard](https://github.com/harrymakoni-netizen/switchboard).
+- **Open-source license:** [MIT](LICENSE), an [OSI-approved license](https://opensource.org/license/mit).
+- **Setup instructions:** [Run locally without service keys](#run-locally-without-service-keys), with deployment guides linked below.
+- **PayPal, AI and sponsor usage:** [Integration details](#what-is-liveand-what-is-simulated), [architecture](#how-it-works), and [implementation references](#technology-and-implementation-references).
+- **Hands-on review:** [Try it as a judge](#try-it-as-a-judge), including authorization, completion approval, payout and receipt verification.
+
 ## The problem
 
 Arranging a repair means explaining the same problem repeatedly, comparing prices with different inclusions and appointment times, and deciding when to pay. That gets harder when you are organizing the work for someone else.
@@ -27,13 +35,16 @@ Switchboard brings the request, quote details, supporting transcripts, research,
 
 The hosted build connects to real provider APIs. **All PayPal transactions use sandbox funds.**
 
-| Integration | Role in the hosted demo |
-| --- | --- |
-| **PayPal** | Sandbox checkout, authorization, capture, void, payouts, verified webhooks, and invoice receipts. A hosted $95 capture, successful payout, and verified PAID receipt were exercised. |
-| **PayPal Agent Toolkit** | An invoice-only receipt workflow. The hosted worker orchestrates its fixed steps; server code independently verifies the completed capture and invoice before showing a paid receipt. |
-| **Gemini** | Repair planning, transcription of recorded requests, and structured extraction of quote details from scripted conversations. |
-| **Kernel** | A real cloud browser reads the configured public Harare plumbing directory. The app retains source links, lookup time, and session evidence. Six directory leads were verified in the hosted flow. |
-| **Channel3** | Live US-market retail searches for explicitly identified replacement parts. Five USD water-heater offers were verified in the hosted flow. Prices can change. |
+| Integration              | Role in the hosted demo                                                                                                                                                                                                                                                                                          |
+| ------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **PayPal**               | Orders v2 creates sandbox checkout; Payments v2 authorizes, captures and voids; Payouts v1 sends the payout; Invoicing v2 provides receipts. Verified webhooks and polling reconcile payment states. A hosted $95 capture, successful payout, and verified PAID receipt were exercised.                          |
+| **PayPal Agent Toolkit** | An invoice-only receipt workflow. The hosted worker orchestrates its fixed steps; server code independently verifies the completed capture and invoice before showing a paid receipt.                                                                                                                            |
+| **Gemini**               | Repair planning, transcription of recorded requests, and structured extraction of quote details from scripted conversations.                                                                                                                                                                                     |
+| **Vercel AI SDK**        | The `ai` package and `@ai-sdk/google` connect Gemini to planning, transcription and schema-validated quote extraction. The receipt tooling also uses the toolkit's AI SDK adapter.                                                                                                                               |
+| **Kernel**               | A real cloud browser reads the configured public Harare plumbing directory. The app retains source links, lookup time, and session evidence. Six directory leads were verified in the hosted flow.                                                                                                               |
+| **Channel3**             | Live US-market retail searches for explicitly identified replacement parts. Five USD water-heater offers were verified in the hosted flow. Prices can change.                                                                                                                                                    |
+| **Render**               | Hosts the always-running Fastify worker as a Web Service and the PostgreSQL database. The worker runs pg-boss jobs, receives webhooks, and coordinates research, payment processing and reconciliation. [Deployment settings](docs/render-worker.md) document build, migration, start and health-check commands. |
+| **Vercel hosting**       | Hosts the Next.js frontend and its server routes, including the request interface, job views and PayPal return/cancel callbacks. This hosting role is separate from Vercel AI SDK usage.                                                                                                                         |
 
 **The quote-board businesses, sample ratings, service quotes, provider confirmations, and conversations are simulated.** The separate Kernel research panel contains real public directory leads; the app does not attribute scripted quotes to those businesses. No real business is called and no real repair is booked in the selected demo.
 
@@ -85,11 +96,24 @@ flowchart TD
     Complete --> Payment["Server: capture, payout, verified receipt"]
 ```
 
-The **Next.js** frontend runs on **Vercel**. A **Fastify** worker on **Render** processes durable jobs through **pg-boss**. **PostgreSQL** stores job state, quotes, transcripts, events, and the payment ledger. Server-sent events keep the interface updated; **AG Grid Community** powers desktop comparison, with a dedicated mobile quote view.
+The **Next.js** frontend runs on **Vercel**. A **Fastify** worker on **Render** processes durable jobs through **pg-boss**. **Render PostgreSQL** stores job state, quotes, transcripts, events, and the payment ledger. Server-sent events keep the interface updated; **AG Grid Community** powers desktop comparison, with a dedicated mobile quote view.
 
 The server payment engine owns monetary actions. AI tools cannot authorize, capture, void, or pay out funds. Booking and completion require separate buyer approvals. Amount and recipient guards, transactional outbox effects, provider idempotency keys, verified webhooks, and reconciliation polling protect the sequence across retries and worker restarts. Startup rejects any `PAYPAL_ENV` other than `sandbox`.
 
 For the configured directory, Kernel reads structured listing cards directly and checks names, contacts, and source links against page evidence. This avoids an extra Gemini request for that supported source. Directory coverage is limited to the configured Harare plumbing demonstration.
+
+## Technology and implementation references
+
+The application uses **TypeScript**, **React/Next.js**, **Tailwind CSS**, **Node.js 24**, **Fastify**, **PostgreSQL**, **Drizzle ORM**, **pg-boss**, **AG Grid Community** and **Zod**. **pnpm** manages the workspace, **Docker Compose** supplies the local database, and **Vitest/Playwright** provide automated verification. Dependency names and versions are recorded in [package.json](package.json), [the web package](apps/web/package.json), and [pnpm-lock.yaml](pnpm-lock.yaml).
+
+| Area                            | Implementation and documentation                                                                                                                                                                                              |
+| ------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| PayPal REST and monetary guards | [PayPal adapter](packages/paypal/src/index.ts), [payment engine](packages/engine/src/money.ts), [receipt verification](packages/paypal/src/receipts.ts), [sandbox setup](docs/paypal-sandbox.md)                              |
+| Gemini through Vercel AI SDK    | [Planner and extractor](packages/agents/src/gemini.ts), [voice transcription](packages/agents/src/transcribe.ts), [invoice-only Agent Toolkit workflow](packages/agents/src/receipt.ts)                                       |
+| Kernel and Channel3             | [Kernel browser adapter](packages/partners/src/kernel.ts), [Channel3 search adapter](packages/partners/src/channel3.ts), [research orchestration](packages/partners/src/research.ts), [setup guide](docs/partner-research.md) |
+| Render and persistence          | [Worker entry point](apps/worker/src/index.ts), [database package](packages/db), [Render deployment guide](docs/render-worker.md)                                                                                             |
+| Vercel frontend                 | [Next.js application](apps/web), [Vercel project settings](apps/web/vercel.json), [PayPal checkout callbacks](apps/web/app/jobs/%5Bid%5D/paypal)                                                                              |
+| Manual API review               | [Postman-compatible collection](docs/switchboard.postman_collection.json) is supplied for exercising the API. This is a review artifact, not a Postman/Astro runtime integration.                                             |
 
 ## Run locally without service keys
 
@@ -138,16 +162,16 @@ The browser suite starts the production web server and worker. Tests use synthet
 
 ## Project structure and guides
 
-| Path | Responsibility |
-| --- | --- |
-| `apps/web` | Request form, voice input, quote board, job APIs, checkout callbacks, live updates |
-| `apps/worker` | Durable background work, partner research, confirmations, payment scheduling and recovery |
-| `packages/engine` | State transitions, buyer approvals, monetary guards and payment execution |
-| `packages/paypal` | Sandbox REST adapter, webhook verification and receipt verification |
-| `packages/agents` | Gemini planning, transcription, extraction and invoice-only receipt tooling |
-| `packages/partners` | Kernel directory discovery and Channel3 parts-price research |
-| `packages/db` | Schema, migrations, events and payment ledger |
-| `packages/calls`, `packages/bots` | Telephony interfaces and simulated provider conversations |
+| Path                              | Responsibility                                                                            |
+| --------------------------------- | ----------------------------------------------------------------------------------------- |
+| `apps/web`                        | Request form, voice input, quote board, job APIs, checkout callbacks, live updates        |
+| `apps/worker`                     | Durable background work, partner research, confirmations, payment scheduling and recovery |
+| `packages/engine`                 | State transitions, buyer approvals, monetary guards and payment execution                 |
+| `packages/paypal`                 | Sandbox REST adapter, webhook verification and receipt verification                       |
+| `packages/agents`                 | Gemini planning, transcription, extraction and invoice-only receipt tooling               |
+| `packages/partners`               | Kernel directory discovery and Channel3 parts-price research                              |
+| `packages/db`                     | Schema, migrations, events and payment ledger                                             |
+| `packages/calls`, `packages/bots` | Telephony interfaces and simulated provider conversations                                 |
 
 Setup and implementation details: [PayPal sandbox](docs/paypal-sandbox.md) · [Invoice receipt boundaries](docs/paypal-receipts.md#boundaries) · [Kernel and Channel3](docs/partner-research.md) · [Voice input](docs/voice-input.md) · [Render worker](docs/render-worker.md) · [Twilio status](docs/twilio-trial.md).
 
