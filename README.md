@@ -1,143 +1,158 @@
 # Switchboard
 
-A buyer’s assistant for arranging a home repair: one brief, evidence-backed quote comparison, and two explicit payment approvals.
+**Your call. Our legwork.**
 
-**[Open Switchboard](https://switchboard-hjm-technologies.vercel.app) · [Demo walkthrough](https://switchboard-hjm-technologies.vercel.app/demo) · [Submission draft and video script](docs/hackathon-submission.md)**
+Turn one home-repair request into comparable quotes, a booking, and a verified PayPal sandbox receipt—with the buyer approving both the booking and the release of payment.
 
-The hosted demonstration uses **Gemini and PayPal sandbox APIs** with persistent Postgres state and a Render worker. Quote providers and phone conversations are **simulated**, clearly labeled throughout the interface. Optional Kernel research retrieves real directory leads separately, and Channel3 supplies advisory parts prices. No real repairs are booked or real money moved. A complete offline mode also runs without provider API keys.
+**[Try the live demo](https://switchboard-hjm-technologies.vercel.app) · [Open the walkthrough](https://switchboard-hjm-technologies.vercel.app/demo)**
 
-## For judges
+Built for the **PayPal AI Hackathon**.
 
-1. Open the hosted demo in one browser, select the sample repair, then **Find my quotes**.
-2. Compare Tendai’s $95 quote and 30-day guarantee with QuickFix’s $110 quote and 90-day guarantee. The cheaper provider offers a later appointment; times outside your requested window are flagged. Avondale declines. All names, prices, ratings, and conversations are synthetic demo data.
-3. Open **Transcript** to inspect the evidence, then **Book** a quote within budget.
-4. Approve using a **PayPal sandbox Personal buyer account**. Your real PayPal account is not a sandbox buyer login. Create a test buyer at [PayPal Developer → Sandbox Accounts](https://developer.paypal.com/dashboard/accounts), or use sandbox test access supplied privately with the submission. Never publish real credentials or developer API secrets.
-5. Once confirmed, select **Show payout recipient**, review it, then **Fast-forward to completion**.
-6. **Mark done · release payment** captures the authorized amount and initiates payout. Watch the provider status and open **View receipt** when ready. Unclaimed payouts are distinguished from completed payouts.
+## The problem
 
-To test the other outcomes, **Cancel booking** requests voiding before capture; **Not done · keep funds held** records an issue without capture. Keep the same browser session: access is protected by a signed anonymous cookie. Avoid private-window switching mid-checkout.
+Arranging a repair means explaining the same problem repeatedly, comparing prices with different inclusions and appointment times, and deciding when to pay. That gets harder when you are organizing the work for someone else.
 
-| Capability | Hosted demonstration | Offline setup |
-| --- | --- | --- |
-| Brief planning and quote extraction | Gemini, strict validated output | Deterministic mock |
-| Comparison | AG Grid desktop; complete quote details and booking controls on mobile | Same interface |
-| Authorize, capture, void, payout | PayPal sandbox API | Stateful mock adapter |
-| Invoice receipt | PayPal invoice workflow, independently verified before display | Printable mock receipt |
-| Discovery and conversations | Configured providers and scripted transcripts | Same simulation |
+Switchboard brings the request, quote details, supporting transcripts, research, and payment status into one place. The buyer chooses the provider, reviews the recipient, and confirms completion before the server captures payment.
 
-Live phone conversations remain unfinished. Kernel directory discovery and Channel3 parts-price research are implemented behind an optional configuration flag; Both have passed hosted verification: six sourced directory leads and five USD parts offers. The configured directory covers the Harare plumbing demonstration; it does not establish service availability or coverage elsewhere. The default demo still uses simulated businesses. See [partner setup and verification](docs/partner-research.md). Twilio placed calls in a separate integration test, but the custom questionnaire has not been verified. See [telephony status](docs/twilio-trial.md).
+## What you can do
 
-## Run locally
+- **Type or speak a request.** Record up to 60 seconds, review the Gemini transcription, and edit it before submitting. Recordings are processed in memory and are not saved by Switchboard.
+- **Build a repair brief.** Gemini extracts the task, location, time window, and USD budget, or asks a follow-up question when information is missing.
+- **Compare the evidence.** Review prices, appointments, included work, guarantees, and transcripts. Over-budget offers cannot be booked; uncertain extractions and appointments outside the requested window are flagged.
+- **Inspect real research.** Kernel retrieves public business-directory leads with source links. Channel3 supplies retail parts offers and an advisory USD median.
+- **Approve the booking.** PayPal sandbox checkout authorizes the selected quote amount without capturing it.
+- **Approve completion.** After reviewing the payout recipient, mark the work done to trigger capture, payout, and a verified invoice receipt. Cancellation before capture requests a void; reporting unfinished work leaves payment uncaptured and records an issue.
 
-Requires Node 24, pnpm 11, Docker (or your own PostgreSQL 16).
+## What is live—and what is simulated
+
+The hosted build connects to real provider APIs. **All PayPal transactions use sandbox funds.**
+
+| Integration | Role in the hosted demo |
+| --- | --- |
+| **PayPal** | Sandbox checkout, authorization, capture, void, payouts, verified webhooks, and invoice receipts. A hosted $95 capture, successful payout, and verified PAID receipt were exercised. |
+| **PayPal Agent Toolkit** | An invoice-only receipt workflow. The hosted worker orchestrates its fixed steps; server code independently verifies the completed capture and invoice before showing a paid receipt. |
+| **Gemini** | Repair planning, transcription of recorded requests, and structured extraction of quote details from scripted conversations. |
+| **Kernel** | A real cloud browser reads the configured public Harare plumbing directory. The app retains source links, lookup time, and session evidence. Six directory leads were verified in the hosted flow. |
+| **Channel3** | Live US-market retail searches for explicitly identified replacement parts. Five USD water-heater offers were verified in the hosted flow. Prices can change. |
+
+**The quote-board businesses, sample ratings, service quotes, provider confirmations, and conversations are simulated.** The separate Kernel research panel contains real public directory leads; the app does not attribute scripted quotes to those businesses. No real business is called and no real repair is booked in the selected demo.
+
+Directory leads do not confirm availability or suitability. Channel3 prices cover parts only, exclude labour, delivery and taxes, and do not establish compatibility or local availability. Neither research integration changes an agreed quote or approves payment.
+
+Live provider phone conversations remain outside the verified demo scope. An experimental Twilio adapter is included in the repository and stays disabled in the hosted demonstration. The working microphone button is for **dictating the buyer’s request**, not placing provider calls.
+
+<details>
+<summary>See the live quote board and partner research</summary>
+
+![Switchboard quote board with simulated service offers, real Kernel directory leads, and Channel3 parts research](docs/screenshots/live-research.png)
+
+Captured during hosted verification on 6 November 2026. Service offers are simulated; directory and retail results came from live integrations. Displayed retail prices are a lookup snapshot.
+
+</details>
+
+## Try it as a judge
+
+Use the same browser session throughout the flow.
+
+1. Open the [live app](https://switchboard-hjm-technologies.vercel.app) and enter:
+
+   > Replace Mum’s geyser heating element in Avondale, Harare tomorrow, under $120.
+
+   You can also choose **Record request**, allow microphone access, speak, then select **Stop recording**. Review the text before choosing **Find my quotes**. Naming the part lets the demo show Channel3’s parts lookup.
+
+2. Compare the simulated offers: **Tendai Plumbing — $95 with a 30-day guarantee**, and **QuickFix Geysers — $110 with a 90-day guarantee**. Avondale Handyman declines. Tendai’s cheaper appointment is later and is flagged when outside the requested window. Open **Transcript** to inspect each conversation.
+3. Scroll to **Research behind your request** to inspect Kernel directory sources and Channel3 parts offers. These are separate from the simulated quote providers.
+4. Choose **Book** on Tendai’s $95 offer, then approve the authorization in **PayPal sandbox**. Use a sandbox Personal buyer account—not a real PayPal login. Test accounts can be created through [PayPal Developer → Sandbox Accounts](https://developer.paypal.com/dashboard/accounts). Keep test access details in the submission’s private testing instructions.
+5. Once the booking is confirmed, select **Show payout recipient** and review the destination. Choose **Fast-forward to completion** to skip the demo appointment wait; this does not approve payment.
+6. Select **Mark done · release payment**. Follow the capture and payout statuses, then open **View receipt** when the paid invoice has been verified. Pending and unclaimed payouts remain distinguishable from successful payouts.
+
+For alternate outcomes, start a separate job and choose **Cancel booking** before capture, or **Not done · keep funds held** at completion. External APIs may take time or hit rate limits; the app preserves saved job state and reports unavailable research rather than substituting invented results.
+
+Job access uses a signed anonymous browser cookie. Switching browsers or private windows creates a different session.
+
+## How it works
+
+```mermaid
+flowchart TD
+    Request["Typed or spoken repair request"] --> Brief["Gemini: structured brief"]
+    Brief --> Quotes["Scripted provider conversations<br/>Gemini quote extraction"]
+    Brief --> Research["Kernel directory leads<br/>Channel3 parts research"]
+    Quotes --> Review["Buyer reviews quotes and evidence"]
+    Research --> Review
+    Review --> Book["Approval 1: PayPal sandbox authorization"]
+    Book --> Done["Provider confirmation: simulated<br/>Buyer reviews payout recipient"]
+    Done --> Complete["Approval 2: buyer confirms completion"]
+    Complete --> Payment["Server: capture, payout, verified receipt"]
+```
+
+The **Next.js** frontend runs on **Vercel**. A **Fastify** worker on **Render** processes durable jobs through **pg-boss**. **PostgreSQL** stores job state, quotes, transcripts, events, and the payment ledger. Server-sent events keep the interface updated; **AG Grid Community** powers desktop comparison, with a dedicated mobile quote view.
+
+The server payment engine owns monetary actions. AI tools cannot authorize, capture, void, or pay out funds. Booking and completion require separate buyer approvals. Amount and recipient guards, transactional outbox effects, provider idempotency keys, verified webhooks, and reconciliation polling protect the sequence across retries and worker restarts. Startup rejects any `PAYPAL_ENV` other than `sandbox`.
+
+For the configured directory, Kernel reads structured listing cards directly and checks names, contacts, and source links against page evidence. This avoids an extra Gemini request for that supported source. Directory coverage is limited to the configured Harare plumbing demonstration.
+
+## Run locally without service keys
+
+Requires **Node.js 24**, **pnpm 11.25**, and **Docker Compose** (or PostgreSQL 16).
 
 ```sh
+git clone https://github.com/harrymakoni-netizen/switchboard.git
+cd switchboard
 cp .env.example .env
-pnpm install
-# Starts local PostgreSQL with development-only credentials.
+pnpm install --frozen-lockfile
 docker compose up -d --wait
 pnpm exec tsx --env-file=.env packages/db/src/migrate.ts
 pnpm dev
 ```
 
-Open **http://localhost:3000**. The worker listens on port 4000. Keep all `MOCK_*` flags at `1` and `PAYPAL_ENV=sandbox`. Change `SESSION_SECRET` before any hosting. Web configuration loads the root `.env`; worker dev startup uses `--env-file=.env`. PostgreSQL is required in mock mode; no external service keys are needed.
+Open **http://localhost:3000**. The worker runs on port **4000**; the Compose database is exposed on **5433**, matching `.env.example`.
 
-The Docker Compose database is exposed on port **5433**. Set DATABASE_URL in `.env` to that local port before migrating and starting the app. Standalone test commands need DATABASE_URL exported in their environment.
+The example configuration uses mock AI, payments, discovery, and conversations. PostgreSQL is still required. Mock checkout approves automatically, so no PayPal login or external API key is needed. To see illustrative research locally, set `PARTNER_RESEARCH_MODE=mock` before starting. Voice transcription needs a live Gemini connection; offline mode leaves typing available and does not invent a transcript.
 
-Try **“Fix Mum’s geyser in Avondale tomorrow, under $120”**:
+For live integrations, configure secrets in the relevant deployment environment and follow the guides below. Keep `PAYPAL_ENV=sandbox`. The hosted demo retains simulated quote providers and calls while enabling live research separately. Never commit API keys or sandbox passwords.
 
-1. Watch three demo businesses get called in parallel: Tendai quotes $95, QuickFix quotes $110, and Avondale declines.
-2. Open **Transcript** to inspect the disclosed simulated conversation. This is text, not a recording.
-3. Choose **Book**. Mock approval redirects automatically and records a sandbox hold; no charge occurs.
-4. Wait for booking confirmation. Click **Show payout recipient** and review the email.
-5. Use **Fast-forward to completion**, then **Mark done · release payment**.
-6. The job closes with a capture, payout, and a printable mock receipt.
+## Verification
 
-Alternatively, **Cancel booking** before completion to void the hold. **Not done** moves the job to ISSUE and retains the hold. Quotes, calls, events, and payments persist in Postgres across refreshes. Mock authorization state is restored from the ledger when the worker restarts.
+As of **6 November 2026**:
 
-## Validate
+- **235 automated tests** and **20 browser scenarios** passed, including payment guards, idempotency, session isolation, research, and voice-input recovery.
+- Strict TypeScript checks, ESLint, and the production build passed; desktop and 375px mobile renders were inspected.
+- Hosted checks verified Gemini planning and quote extraction, Kernel directory leads, Channel3 parts offers, and native browser recording through the real Gemini transcription endpoint.
+- A recorded PayPal sandbox run verified one $95 capture, one successful $95 payout, and an independently verified PAID invoice receipt.
+
+Automated payment tests use provider mocks. Hosted checks are point-in-time evidence and do not guarantee ongoing external API availability.
+
+To repeat local checks, start and migrate a disposable development database first:
 
 ```sh
+export DATABASE_URL=postgres://switchboard:switchboard@localhost:5433/switchboard
 pnpm lint
 pnpm typecheck
 pnpm build
 pnpm test
 pnpm exec playwright install chromium
-pnpm e2e:mock
+PARTNER_RESEARCH_MODE=mock pnpm e2e:mock
 ```
 
-The e2e command starts the production web server and worker, so run `pnpm build` first. A local Postgres instance must already be running and migrated. Tests make no external service calls. The Vitest integration tests write synthetic jobs into the local development database; use a disposable database when evaluating the suite.
+The browser suite starts the production web server and worker. Tests use synthetic data and stub external provider requests; they do not move real money.
 
-## Architecture
+## Project structure and guides
 
-- `apps/web`: Next.js App Router, Tailwind, AG Grid Community, signed httpOnly anonymous sessions, authenticated job APIs, and SSE.
-- `apps/worker`: Fastify and pg-boss. Dispatches committed outbox effects, mock calls, booking confirmations, delayed slots, capture/payout/void, polling, receipts, and reauthorization.
-- `packages/engine`: strict state graph and guards. Transitions lock the job row in a transaction and atomically write state, events, and durable side-effect intents. Payment execution lives exclusively in `packages/engine/src/money.ts` and runs after commit; the worker only schedules these engine operations.
-- `packages/db`: Drizzle schema, SQL migration, queries, payment ledger, and Postgres LISTEN/NOTIFY.
-- `packages/paypal`: sandbox-only REST adapter, mock stateful adapter, verified webhook inbox, polling, capture/order checks, and independent invoice verification.
-- `packages/agents`: Gemini structured JSON with strict validation and a transient-error model fallback, deterministic mock planner/extractor, finder schema, and an invoice-only receipt agent. The receipt agent adapts PayPal Agent Toolkit's older tool interface to the installed AI SDK's ToolLoopAgent. Agents cannot authorize, capture, void, refund, or pay out funds.
-- `packages/calls` / `packages/bots`: typed telephony boundary, AI disclosure, bounded concurrent mock conversations, SMS templates, and three synthetic bot personas.
-- The worker also supports an opt-in Twilio turn-based trial adapter with signed callbacks and durable call turns. It remains disabled until account and verified-recipient tests pass. See [Twilio trial setup and limits](docs/twilio-trial.md).
+| Path | Responsibility |
+| --- | --- |
+| `apps/web` | Request form, voice input, quote board, job APIs, checkout callbacks, live updates |
+| `apps/worker` | Durable background work, partner research, confirmations, payment scheduling and recovery |
+| `packages/engine` | State transitions, buyer approvals, monetary guards and payment execution |
+| `packages/paypal` | Sandbox REST adapter, webhook verification and receipt verification |
+| `packages/agents` | Gemini planning, transcription, extraction and invoice-only receipt tooling |
+| `packages/partners` | Kernel directory discovery and Channel3 parts-price research |
+| `packages/db` | Schema, migrations, events and payment ledger |
+| `packages/calls`, `packages/bots` | Telephony interfaces and simulated provider conversations |
 
-All code is newly written from the supplied scope. No RollCall source was provided or reused. No stretch features have been implemented. The API uses a Next.js optional catch-all implementation while exposing the specified URLs; PayPal return/cancel handlers are separate routes.
+Setup and implementation details: [PayPal sandbox](docs/paypal-sandbox.md) · [Invoice receipt boundaries](docs/paypal-receipts.md#boundaries) · [Kernel and Channel3](docs/partner-research.md) · [Voice input](docs/voice-input.md) · [Render worker](docs/render-worker.md) · [Twilio status](docs/twilio-trial.md).
 
-## Safety boundaries
+The web project uses `apps/web` as its Vercel root, includes monorepo sources outside that directory, and connects to the hosted worker and PostgreSQL. Deployment secrets remain outside the repository; see [.env.example](.env.example) for variable names.
 
-- Startup rejects `PAYPAL_ENV` other than `sandbox`.
-- Quote prices are integer USD cents. Booking rejects missing, declined, cross-job, or over-budget quotes.
-- Book authorizes; completion approval captures. Recipient review is required before completion.
-- Capture requires a confirmed completion and held authorization. Payout is fixed to the chosen business’s confirmed email and the captured amount.
-- Unique ledger request IDs and provider idempotency keys protect retryable payments. Cancellation is refused after capture or while capture is pending.
-- Job access is isolated by a signed anonymous cookie; no accounts or passwords.
-- Runtime secrets are not committed.
+## License
 
-## Integration status and deployment
-
-The hosted project has working PayPal sandbox and Gemini configuration. Local setup defaults to all mocks. **Keep `MOCK_TELEPHONY=1` and `MOCK_PARTNERS=1` for the selected hackathon demo scope.** No paid voice upgrade is required to evaluate that scope.
-
-Live-provider acceptance still requires a final fresh-browser sandbox run before recording the submission. Hosted PayPal order creation and Gemini planning/extraction have been exercised with real provider credentials; the owner reported successful sandbox capture, payout, and receipt viewing. Automated checks use mocks and are not evidence of fresh provider availability. See [receipt implementation](docs/paypal-receipts.md), [trial calling limits](docs/twilio-trial.md), and [release checklist](docs/hackathon-submission.md).
-
-Configure the variables listed in `.env.example` through environment secrets. For PayPal, create a sandbox business account and REST app with Payouts, a sandbox personal buyer, and personal recipient accounts for the two accepting bots. Set `TENDAI_PAYOUT_EMAIL` and `QUICKFIX_PAYOUT_EMAIL` to those sandbox recipient emails. Demo `example.com` addresses must be replaced before real sandbox runs.
-
-The worker is a Render **web service** with HTTPS callbacks and a pre-deploy migration command. See [deployment instructions](docs/render-worker.md). A [Postman collection](docs/switchboard.postman_collection.json) covers the explicit API actions; its requests never automatically execute the next payment step.
-
-## Design
-
-Public Sans is self-hosted under `apps/web/public/fonts` with its OFL license. The interface uses a cobalt shell, cool light workspace, restrained green state feedback, and a data-first board. Screenshots are under `docs/`. Design preferences are documented in [DESIGN.md](DESIGN.md).
-
-## Vercel deployment
-
-Project: `switchboard`, team: `hjm-technologies`. Production alias: https://switchboard-hjm-technologies.vercel.app. Production is publicly accessible; preview deployments retain Vercel Authentication protection.
-
-Root directory: `apps/web`. Install: `cd ../.. && pnpm install --frozen-lockfile`. Build: `pnpm build`. Node: 24.x for the initial deployment. The monorepo source outside the root directory must be included.
-
-Production has `HOSTED_UI_ONLY=0` and connects to the persistent Render worker at https://switchboard-worker-1naa.onrender.com. Preview remains interface-only. Do not set DATABASE_URL or PUBLIC_WORKER_URL to localhost on Vercel. Vercel uses Render's external Postgres URL with TLS; Render uses the database's internal URL. Both services share SESSION_SECRET. See [worker deployment](docs/render-worker.md).
-
-Production keeps `PAYPAL_ENV=sandbox`, `DEMO_MODE=1`, `MOCK_TELEPHONY=1`, and `MOCK_PARTNERS=1`; PayPal and Gemini are enabled separately with `MOCK_PAYPAL=0` and `MOCK_LLM=0`. Do not copy production configuration into local offline tests.
-
-Repository source is pushed to `main`. The initial project was deployed from inline source; repository-based deployments are supported and verified separately. Automatic deployment on every push still requires connecting this repository under the existing Vercel project’s Settings → Git.
-
-## Integration 1: PayPal payments
-
-Sandbox checkout, authorization, capture, void, payouts, verified webhooks, and invoice receipts are implemented. See [PayPal setup and acceptance checks](docs/paypal-sandbox.md) and [receipt recovery and verification](docs/paypal-receipts.md). M7 has not passed in full.
-
-## Gemini configuration
-
-Gemini handles planning, quote extraction, directory interpretation, and the invoice-only receipt agent. AI agents have no tools for authorization, capture, void, refund, or payout.
-
-Mock mode (`MOCK_LLM=1`) needs no Google API key and makes no Gemini requests. When ready to test real AI calls, create a key at https://aistudio.google.com/apikey and set these variables in the web and worker environments:
-
-```text
-GEMINI_API_KEY=<Google AI Studio API key>
-GEMINI_MODEL=gemini-3.6-flash
-GEMINI_FALLBACK_MODEL=gemini-3.5-flash-lite
-MOCK_LLM=0
-```
-
-The model is configurable; use a Gemini model available to your Google account. The default is the latest Flash text model listed by the model catalog and installed provider at the time of this change (2026-11-03), chosen for brief planning and extraction latency. This setup calls Google directly with the key supplied to `createGoogle`; it does not require an AI Gateway account. Old provider credentials are no longer used.
-
-Both the planner's brief/follow-up union and the finder's business array are sent as JSON schemas. Invalid output is rejected, with one validation retry. Temporary HTTP 500/502/503/504 failures can switch once to the fallback model; authentication and quota errors do not. Structured-output calls have a 30-second timeout. Live hosted planning and quote extraction passed; offline tests exercise Google's provider with in-process HTTP stubs.
-
-Optional hackathon partner research: [Kernel + Channel3 configuration](docs/partner-research.md). Set `PARTNER_RESEARCH_MODE=mock` for offline research or `live` with worker credentials and an approved directory URL. Keep demo quotes separate from real directory leads. The previously recorded demo does not show these new integrations.
-
-Voice requests: choose **Record request**, allow the microphone, speak, then stop and review the text before finding quotes. Uses the existing Gemini connection; recordings are not saved by Switchboard. [Voice input details](docs/voice-input.md).
+[MIT](LICENSE).
