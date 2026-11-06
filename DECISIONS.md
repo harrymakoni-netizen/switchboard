@@ -61,3 +61,5 @@
 
 - Channel3 succeeded in the hosted job; Kernel failed twice despite successful direct browser retrieval. Persist only safe failure stage/class/status for the owning job to distinguish configuration, browser and extraction failures. No SDK messages or secrets are stored.
 - Translate the regional part term geyser to water heater for the configured US catalogue and exclude unrelated heating-element categories before calculating the advisory median.
+
+- Kernel hosted failure was Gemini extraction HTTP 429, not browser access. The explicitly supported Harare plumbing directory is now parsed from real listing cards, with the same source/contact checks and recorded extraction method. Other sources retain the model path; no synthetic fallback or quota-driven model switching is introduced. The live adapter returned six leads without invoking Gemini.

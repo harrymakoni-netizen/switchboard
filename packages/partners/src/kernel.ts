@@ -12,6 +12,17 @@ const pageEvidenceSchema = z.object({
   url: publicUrl,
   text: z.string().max(40000),
   links: z.array(z.string()).max(200),
+  listings: z
+    .array(
+      z.object({
+        name: z.string(),
+        phone: z.string(),
+        address: z.string(),
+        sourceUrl: z.string(),
+      }),
+    )
+    .max(30)
+    .optional(),
 });
 export class DirectoryResearchError extends Error {
   constructor(
@@ -49,6 +60,14 @@ export function directoryUrl(template: string, brief: JobBrief) {
       ),
   );
 }
+function normalizeZimbabwePhone(raw: string) {
+  const digits = raw.replace(/\D/g, "");
+  if (raw.trim().startsWith("+")) return "+" + digits;
+  if (digits.startsWith("00")) return "+" + digits.slice(2);
+  if (digits.startsWith("263")) return "+" + digits;
+  if (digits.startsWith("0")) return "+263" + digits.slice(1);
+  return "";
+}
 export interface DirectoryBrowser {
   read(
     url: string,
@@ -74,7 +93,14 @@ export class KernelDirectory implements DirectoryBrowser {
         session.session_id,
         {
           code: `await page.goto(${JSON.stringify(url)}, {waitUntil: 'domcontentloaded', timeout: 30000});
-          return {url: page.url(), text: (await page.locator('body').innerText()).slice(0,40000),
+          const listings = new URL(page.url()).hostname === 'www.zimbabweyp.com'
+            ? await page.locator('div.company[data-cmpid]').evaluateAll(cards => cards.slice(0,30).map(card => ({
+              name: card.querySelector('h3 a')?.textContent?.trim() || '',
+              sourceUrl: card.querySelector('h3 a')?.href || '',
+              phone: card.querySelector('.fa-phone')?.parentElement?.textContent?.trim() || '',
+              address: card.querySelector('.address')?.textContent?.trim() || ''
+            }))) : [];
+          return {url: page.url(), text: (await page.locator('body').innerText()).slice(0,40000), listings,
           links: await page.locator('a[href]').evaluateAll(as => as.slice(0,200).map(a => a.href))};`,
         },
       );
@@ -108,9 +134,28 @@ export async function discoverBusinesses(
     evidence.url,
     ...evidence.links.filter((link) => publicUrl.safeParse(link).success),
   ]);
-  const found = await atStage("extraction", () =>
-    findBusinesses(llm, brief, JSON.stringify(evidence)),
-  );
+  const source = new URL(evidence.url);
+  const structured =
+    source.hostname === "www.zimbabweyp.com" &&
+    decodeURIComponent(source.pathname).toLowerCase() ===
+      "/category/plumbers/city:harare" &&
+    /geyser|plumb|water[ -]?heater/i.test(brief.task) &&
+    /harare|avondale/i.test(brief.location) &&
+    Boolean(evidence.listings?.length);
+  // Read the directory's actual listing cards; no model or synthetic fallback is needed.
+  const found = structured
+    ? evidence
+        .listings!.filter((item) => /harare/i.test(item.address))
+        .map((item) => ({
+          name: item.name,
+          phone: normalizeZimbabwePhone(item.phone),
+          rating: null,
+          sourceUrl: item.sourceUrl,
+        }))
+    : await atStage("extraction", () =>
+        findBusinesses(llm, brief, JSON.stringify(evidence)),
+      );
+
   const seen = new Set<string>();
   const businesses = found.flatMap((candidate) => {
     const sourceUrl = candidate.sourceUrl ?? evidence.url;
@@ -153,6 +198,7 @@ export async function discoverBusinesses(
     sessionId,
     directoryUrl: evidence.url,
     checkedAt: new Date().toISOString(),
-    businesses,
+    businesses: businesses.slice(0, 6),
+    extractionMethod: structured ? "directory-listings" : "gemini",
   };
 }

@@ -160,6 +160,86 @@ describe("Kernel discovery", () => {
     expect(result.businesses).toEqual([]);
   });
 });
+describe("Direct directory listings", () => {
+  const url = "https://www.zimbabweyp.com/category/plumbers/city:Harare";
+  const listing = {
+    name: "Evidence Plumbing",
+    phone: "077 123 4567",
+    address: "Avondale, Harare",
+    sourceUrl: "https://www.zimbabweyp.com/company/123/Evidence_Plumbing",
+  };
+  const evidence = {
+    url,
+    text: "Evidence Plumbing\nAvondale, Harare\n077 123 4567",
+    links: [listing.sourceUrl],
+    listings: [listing],
+  };
+  it("reads evidenced cards without consuming another Gemini request", async () => {
+    const json = vi.fn();
+    const model: LLM = {
+      json: async () => {
+        json();
+        throw new Error("quota exhausted");
+      },
+    };
+    const result = await discoverBusinesses(
+      brief,
+      url,
+      { read: async () => ({ sessionId: "live-proof", page: evidence }) },
+      model,
+    );
+    expect(result.businesses).toEqual([
+      { ...candidate, sourceUrl: listing.sourceUrl, rating: null },
+    ]);
+    expect(result.extractionMethod).toBe("directory-listings");
+    expect(json).not.toHaveBeenCalled();
+  });
+  it("does not treat other trades or cities as supported by this source", async () => {
+    const json = vi.fn();
+    const model: LLM = {
+      json: async (a) => {
+        json();
+        return a.schema.parse([]);
+      },
+    };
+    await discoverBusinesses(
+      { ...brief, task: "Repair a roof", location: "Bulawayo" },
+      url,
+      { read: async () => ({ sessionId: "proof", page: evidence }) },
+      model,
+    );
+    expect(json).toHaveBeenCalledOnce();
+  });
+  it("rejects unsupported contacts, profiles and out-of-area cards", async () => {
+    const json = vi.fn();
+    const model: LLM = {
+      json: async () => {
+        json();
+        throw new Error("must not call model");
+      },
+    };
+    const result = await discoverBusinesses(
+      brief,
+      url,
+      {
+        read: async () => ({
+          sessionId: "proof",
+          page: {
+            ...evidence,
+            listings: [
+              { ...listing, phone: "+263779999999" },
+              { ...listing, sourceUrl: "https://madeup.example.org/profile" },
+              { ...listing, address: "Bulawayo" },
+            ],
+          },
+        }),
+      },
+      model,
+    );
+    expect(result.businesses).toEqual([]);
+    expect(json).not.toHaveBeenCalled();
+  });
+});
 describe("Channel3 advisory prices", () => {
   it("translates geyser searches and excludes unrelated oven or infrared parts", async () => {
     const fetcher = vi.fn(

@@ -71,3 +71,10 @@ Worker revision 6701f8a reports live research with both keys and the fixed direc
 Research failures now persist only the stage (configuration/browser/extraction/lookup), a bounded error-class name and optional numeric HTTP status in the owning job snapshot. SDK messages, request/response bodies, prompts and credentials are excluded. This allows diagnosis without exposing secrets or asking for raw logs. The same update trims pasted Kernel keys/directory URLs and translates “geyser” into “water heater” for US-catalogue searches, excluding results whose title/description has no water-heater/immersion evidence. This is a relevance filter, not a compatibility guarantee.
 
 Hosted Kernel acceptance remains open until the diagnostic update is deployed and the failure is resolved. The existing PayPal approvals and ledger are unchanged.
+
+
+### Root cause and verified fix
+
+The diagnostic identified `extraction / AI_APICallError / HTTP 429`: Kernel had fetched the page, but the additional Gemini extraction request hit a rate/quota limit. The configured Harare plumber directory now uses a scoped parser for its actual listing cards (name, phone, address and profile link), retaining all existing text/contact/link evidence checks. Other sources, trades and locations still use the model path. No synthetic businesses are substituted.
+
+A live Kernel test of the updated adapter returned six evidenced directory leads with `extractionMethod=directory-listings`; the injected model deliberately threw if invoked, proving this path does not consume a Gemini request. Hosted verification awaits deployment of this fix. Gemini remains responsible for planning and quote extraction. The direct parser does not confirm availability, suitability or service coverage for any lead.

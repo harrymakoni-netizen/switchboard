@@ -27,6 +27,7 @@ export const directoryBusinessSchema = z.object({
 export type DirectoryBusiness = z.infer<typeof directoryBusinessSchema>;
 export const directoryEvidenceSchema = z.object({
   sessionId: z.string().max(200),
+  extractionMethod: z.enum(["directory-listings", "gemini"]).optional(),
   directoryUrl: publicUrl,
   checkedAt: z.string().datetime(),
   businesses: z.array(directoryBusinessSchema).max(6),
