@@ -70,11 +70,18 @@ Worker revision 6701f8a reports live research with both keys and the fixed direc
 
 Research failures now persist only the stage (configuration/browser/extraction/lookup), a bounded error-class name and optional numeric HTTP status in the owning job snapshot. SDK messages, request/response bodies, prompts and credentials are excluded. This allows diagnosis without exposing secrets or asking for raw logs. The same update trims pasted Kernel keys/directory URLs and translates “geyser” into “water heater” for US-catalogue searches, excluding results whose title/description has no water-heater/immersion evidence. This is a relevance filter, not a compatibility guarantee.
 
-Hosted Kernel acceptance remains open until the diagnostic update is deployed and the failure is resolved. The existing PayPal approvals and ledger are unchanged.
+That diagnostic run left hosted Kernel acceptance open; it has since passed after the quota-independent listing fix below. The existing PayPal approvals and ledger are unchanged.
 
 
 ### Root cause and verified fix
 
 The diagnostic identified `extraction / AI_APICallError / HTTP 429`: Kernel had fetched the page, but the additional Gemini extraction request hit a rate/quota limit. The configured Harare plumber directory now uses a scoped parser for its actual listing cards (name, phone, address and profile link), retaining all existing text/contact/link evidence checks. Other sources, trades and locations still use the model path. No synthetic businesses are substituted.
 
-A live Kernel test of the updated adapter returned six evidenced directory leads with `extractionMethod=directory-listings`; the injected model deliberately threw if invoked, proving this path does not consume a Gemini request. Hosted verification awaits deployment of this fix. Gemini remains responsible for planning and quote extraction. The direct parser does not confirm availability, suitability or service coverage for any lead.
+A live Kernel test of the updated adapter returned six evidenced directory leads with `extractionMethod=directory-listings`; the injected model deliberately threw if invoked, proving this path does not consume a Gemini request. The fixed worker has since passed hosted verification (see final acceptance below). Gemini remains responsible for planning and quote extraction. The direct parser does not confirm availability, suitability or service coverage for any lead.
+
+
+## Final hosted acceptance — 6 November 2026
+
+Worker and Vercel frontend revision f106e6c passed the owned-job flow. Retrying research on the same existing job saved six sourced directory leads (`directory-listings`, Kernel session s2fn9q34nqwpwzx7ad0zsgoa) and five USD water-heater parts offers, with a $27.07 median at lookup time. Both outcomes are `complete` / `live`. No new booking or payment was initiated; the test job retains zero payment entries. The results persist across reload and render on desktop and 375px mobile, separately from simulated quote providers.
+
+225 automated tests, strict typecheck, ESLint and the production build passed. The prior demo video predates these partner integrations and should not be represented as showing them. Live phone calls remain outside the verified demo scope.

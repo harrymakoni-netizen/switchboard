@@ -4,7 +4,7 @@ A buyer’s assistant for arranging a home repair: one brief, evidence-backed qu
 
 **[Open Switchboard](https://switchboard-hjm-technologies.vercel.app) · [Demo walkthrough](https://switchboard-hjm-technologies.vercel.app/demo) · [Submission draft and video script](docs/hackathon-submission.md)**
 
-The hosted demonstration uses **Gemini and PayPal sandbox APIs** with persistent Postgres state and a Render worker. Business discovery and phone conversations are **simulated**, clearly labeled throughout the interface. No real repairs are booked or real money moved. A complete offline mode also runs without provider API keys.
+The hosted demonstration uses **Gemini and PayPal sandbox APIs** with persistent Postgres state and a Render worker. Quote providers and phone conversations are **simulated**, clearly labeled throughout the interface. Optional Kernel research retrieves real directory leads separately, and Channel3 supplies advisory parts prices. No real repairs are booked or real money moved. A complete offline mode also runs without provider API keys.
 
 ## For judges
 
@@ -25,7 +25,7 @@ To test the other outcomes, **Cancel booking** requests voiding before capture; 
 | Invoice receipt | PayPal invoice workflow, independently verified before display | Printable mock receipt |
 | Discovery and conversations | Configured providers and scripted transcripts | Same simulation |
 
-Live phone conversations remain unfinished. Kernel directory discovery and Channel3 parts-price research are implemented behind an optional configuration flag; Channel3 has passed a hosted lookup; Kernel’s direct browser read passed, while its hosted lookup remains under investigation. The default demo still uses simulated businesses. See [partner setup and verification](docs/partner-research.md). Twilio placed calls in a separate integration test, but the custom questionnaire has not been verified. See [telephony status](docs/twilio-trial.md).
+Live phone conversations remain unfinished. Kernel directory discovery and Channel3 parts-price research are implemented behind an optional configuration flag; Both have passed hosted verification: six sourced directory leads and five USD parts offers. The configured directory covers the Harare plumbing demonstration; it does not establish service availability or coverage elsewhere. The default demo still uses simulated businesses. See [partner setup and verification](docs/partner-research.md). Twilio placed calls in a separate integration test, but the custom questionnaire has not been verified. See [telephony status](docs/twilio-trial.md).
 
 ## Run locally
 

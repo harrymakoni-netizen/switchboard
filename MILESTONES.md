@@ -27,3 +27,5 @@ The current release prioritizes a complete, clearly disclosed demo with Gemini a
 - 6 November hosted acceptance: worker/frontend research enabled; both keys and directory configured. Hosted Channel3 lookup and Gemini planning/quote extraction passed. Kernel hosted research failed twice; redacted stage/class/status diagnostics added for the next worker deployment. No payment was initiated in these acceptance checks. 222 automated tests pass.
 
 - Kernel cause identified: Gemini HTTP 429 at directory extraction. A source-scoped direct listing parser passed live Kernel verification (six evidenced leads, no model call). 225 tests pass; hosted confirmation waits for the fixed worker.
+
+- Final partner acceptance, 6 November: deployed f106e6c passes the same hosted job after retry. Kernel saves six sourced directory leads without Gemini extraction; Channel3 saves five water-heater offers ($27.07 median at lookup time). Both live results persist and display separately from demo quote providers. No payment initiated; 225 tests, strict typecheck, lint and production build pass.
