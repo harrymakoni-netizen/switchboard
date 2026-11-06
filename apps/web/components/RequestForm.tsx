@@ -1,6 +1,7 @@
 "use client";
-import { useRef, useState, type FormEvent } from "react";
+import { useRef, useState, useCallback, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
+import { VoiceRecorder } from "./VoiceRecorder";
 const example = "Fix Mum’s geyser in Avondale tomorrow, under $120";
 export function RequestForm({
   bookingAvailable = true,
@@ -12,10 +13,22 @@ export function RequestForm({
   const [request, setRequest] = useState("");
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
+  const [voiceBusy, setVoiceBusy] = useState(false);
   const router = useRouter();
   const input = useRef<HTMLTextAreaElement>(null);
+  const appendRecording = useCallback(
+    (text: string) => {
+      const combined = [request.trim(), text].filter(Boolean).join(" ");
+      if (combined.length > 2000) return false;
+      setRequest(combined);
+      requestAnimationFrame(() => input.current?.focus());
+      return true;
+    },
+    [request],
+  );
   async function submit(e: FormEvent) {
     e.preventDefault();
+    if (voiceBusy || busy || !bookingAvailable) return;
     setBusy(true);
     setError("");
     try {
@@ -55,6 +68,11 @@ export function RequestForm({
           </p>
         )}
         <label htmlFor="request">What needs taking care of?</label>
+        <VoiceRecorder
+          disabled={busy || !bookingAvailable}
+          onTranscript={appendRecording}
+          onBusyChange={setVoiceBusy}
+        />
         <textarea
           ref={input}
           id="request"
@@ -64,7 +82,7 @@ export function RequestForm({
           minLength={5}
           maxLength={2000}
           required
-          disabled={busy}
+          disabled={busy || voiceBusy}
         />
         <div className="form-bottom">
           <span className="small">
@@ -72,7 +90,10 @@ export function RequestForm({
             <br />
             You approve every payment.
           </span>
-          <button className="primary" disabled={busy || !bookingAvailable}>
+          <button
+            className="primary"
+            disabled={busy || voiceBusy || !bookingAvailable}
+          >
             {busy ? "Preparing your brief…" : "Find my quotes"}
             <span aria-hidden="true">→</span>
           </button>
@@ -80,7 +101,7 @@ export function RequestForm({
       </form>
       <button
         className="example"
-        disabled={busy}
+        disabled={busy || voiceBusy}
         onClick={() => {
           setRequest(example);
           input.current?.focus();

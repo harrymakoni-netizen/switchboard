@@ -25,6 +25,7 @@ export default defineConfig({
       "packages/**/*.test.ts",
       "tests/**/*.test.ts",
       "apps/worker/**/*.test.ts",
+      "apps/web/**/*.test.ts",
     ],
     fileParallelism: false,
   },

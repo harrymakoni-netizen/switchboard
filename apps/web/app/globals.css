@@ -1148,3 +1148,73 @@ details summary:focus-visible {
     gap: 28px;
   }
 }
+
+.voice-input {
+  margin: 0 0 16px;
+}
+.voice-controls {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+.voice-record {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 44px;
+  padding: 8px 12px;
+  border: 1px solid var(--line);
+  border-radius: 7px;
+  color: var(--blue);
+  background: var(--white);
+  font-size: 13px;
+  font-weight: 600;
+}
+.voice-record:hover {
+  background: #edf2ff;
+}
+.voice-record svg {
+  width: 18px;
+  height: 18px;
+  flex-shrink: 0;
+}
+.voice-record.is-recording {
+  background: #fff1ee;
+  color: #9e2f23;
+  border-color: #e8b2a9;
+}
+.voice-record.is-recording:hover {
+  background: #ffe6df;
+}
+.voice-cancel {
+  min-height: 44px;
+  padding: 8px;
+  color: var(--blue);
+  background: transparent;
+  text-decoration: underline;
+  text-underline-offset: 4px;
+  font-size: 13px;
+}
+.recording-clock {
+  color: #9e2f23;
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
+}
+.voice-help,
+.voice-status,
+.voice-error {
+  font-size: 12px;
+  line-height: 1.6;
+  max-width: 65ch;
+  margin: 8px 0 0;
+}
+.voice-help {
+  color: var(--muted);
+}
+.voice-status {
+  color: var(--ink);
+}
+.voice-error {
+  color: #9e2f23;
+}

@@ -63,3 +63,9 @@
 - Translate the regional part term geyser to water heater for the configured US catalogue and exclude unrelated heating-element categories before calculating the advisory median.
 
 - Kernel hosted failure was Gemini extraction HTTP 429, not browser access. The explicitly supported Harare plumbing directory is now parsed from real listing cards, with the same source/contact checks and recorded extraction method. Other sources retain the model path; no synthetic fallback or quota-driven model switching is introduced. The live adapter returned six leads without invoking Gemini.
+
+## 2026-11-06 — Voice input on the request form
+
+- Use MediaRecorder plus server-side Gemini transcription so the feature does not depend on browser speech-recognition services. No additional integration or key is required.
+- Limit recordings to 60 seconds and uploads to 2 MiB; use in-memory inline audio with no Switchboard audio storage. Disclose third-party processing before recording.
+- Append text for explicit review. Never auto-submit a job or alter approvals, quoted amounts or recipients. Cancellation and late asynchronous results must preserve existing text.

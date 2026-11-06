@@ -139,3 +139,5 @@ The model is configurable; use a Gemini model available to your Google account. 
 Both the planner's brief/follow-up union and the finder's business array are sent as JSON schemas. Invalid output is rejected, with one validation retry. Temporary HTTP 500/502/503/504 failures can switch once to the fallback model; authentication and quota errors do not. Structured-output calls have a 30-second timeout. Live hosted planning and quote extraction passed; offline tests exercise Google's provider with in-process HTTP stubs.
 
 Optional hackathon partner research: [Kernel + Channel3 configuration](docs/partner-research.md). Set `PARTNER_RESEARCH_MODE=mock` for offline research or `live` with worker credentials and an approved directory URL. Keep demo quotes separate from real directory leads. The previously recorded demo does not show these new integrations.
+
+Voice requests: choose **Record request**, allow the microphone, speak, then stop and review the text before finding quotes. Uses the existing Gemini connection; recordings are not saved by Switchboard. [Voice input details](docs/voice-input.md).
