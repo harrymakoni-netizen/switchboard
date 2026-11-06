@@ -3,10 +3,46 @@ import type { LLM } from "@switchboard/agents";
 import {
   discoverBusinesses,
   KernelDirectory,
+  DirectoryResearchError,
   type DirectoryBrowser,
 } from "./kernel";
 import { searchPartPrices } from "./channel3";
 
+export function safeResearchFailure(
+  error: unknown,
+): NonNullable<PartnerResearch["kernel"]["failure"]> {
+  const stage =
+    error instanceof DirectoryResearchError ? error.stage : "lookup";
+  let current = error;
+  let errorClass = "UnknownError";
+  let httpStatus: number | undefined;
+  for (
+    let depth = 0;
+    depth < 5 && current && typeof current === "object";
+    depth++
+  ) {
+    if (
+      current instanceof Error &&
+      /^[A-Za-z][A-Za-z0-9_]{0,63}$/.test(current.name)
+    )
+      errorClass = current.name;
+    const code =
+      "statusCode" in current
+        ? current.statusCode
+        : "status" in current
+          ? current.status
+          : undefined;
+    if (
+      typeof code === "number" &&
+      Number.isInteger(code) &&
+      code >= 400 &&
+      code < 600
+    )
+      httpStatus = code;
+    current = "cause" in current ? current.cause : undefined;
+  }
+  return { stage, errorClass, ...(httpStatus ? { httpStatus } : {}) };
+}
 export type ResearchConfig = {
   PARTNER_RESEARCH_MODE: "off" | "mock" | "live";
   KERNEL_API_KEY?: string;
@@ -102,10 +138,11 @@ export async function researchJob(
           llm,
         );
         return { status: "complete", mode, data };
-      } catch {
+      } catch (error) {
         return {
           status: "failed",
           mode,
+          failure: safeResearchFailure(error),
           message:
             "Directory research could not be verified. Existing quotes and payments are unchanged.",
         };
@@ -131,10 +168,11 @@ export async function researchJob(
           dependencies.fetcher,
         );
         return { status: "complete", mode, data };
-      } catch {
+      } catch (error) {
         return {
           status: "failed",
           mode,
+          failure: safeResearchFailure(error),
           message:
             "Parts prices are unavailable. You can still compare the providers’ actual quotes.",
         };

@@ -7,6 +7,7 @@ const searchSchema = z.object({
       z.object({
         id: z.string(),
         title: z.string(),
+        description: z.string().nullish(),
         offers: z.array(z.unknown()).optional(),
       }),
     )
@@ -27,6 +28,9 @@ export async function searchPartPrices(
   fetcher: typeof fetch = fetch,
 ): Promise<PriceAnchor> {
   query = z.string().trim().min(2).max(300).parse(query);
+  // The configured US catalogue uses "water heater" for the regional term "geyser".
+  query = query.replace(/\bgeyser\b/gi, "water heater");
+  const waterHeater = /water[ -]?heater/i.test(query);
   const response = await fetcher("https://api.trychannel3.com/v1/search", {
     method: "POST",
     headers: { "x-api-key": apiKey, "content-type": "application/json" },
@@ -44,6 +48,13 @@ export async function searchPartPrices(
   const result = searchSchema.parse(JSON.parse(body));
   const offers: PriceAnchor["offers"] = [];
   for (const product of result.products) {
+    if (
+      waterHeater &&
+      !/water[ -]?heater|immersion|geyser/i.test(
+        product.title + " " + (product.description ?? ""),
+      )
+    )
+      continue;
     const candidates = (product.offers ?? [])
       .flatMap((raw) => {
         const checked = offerSchema.safeParse(raw);

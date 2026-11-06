@@ -25,7 +25,7 @@ To test the other outcomes, **Cancel booking** requests voiding before capture; 
 | Invoice receipt | PayPal invoice workflow, independently verified before display | Printable mock receipt |
 | Discovery and conversations | Configured providers and scripted transcripts | Same simulation |
 
-Live phone conversations remain unfinished. Kernel directory discovery and Channel3 parts-price research are implemented behind an optional configuration flag; live partner acceptance awaits keys and a verified directory. The default demo still uses simulated businesses. See [partner setup and verification](docs/partner-research.md). Twilio placed calls in a separate integration test, but the custom questionnaire has not been verified. See [telephony status](docs/twilio-trial.md).
+Live phone conversations remain unfinished. Kernel directory discovery and Channel3 parts-price research are implemented behind an optional configuration flag; Channel3 has passed a hosted lookup; Kernel’s direct browser read passed, while its hosted lookup remains under investigation. The default demo still uses simulated businesses. See [partner setup and verification](docs/partner-research.md). Twilio placed calls in a separate integration test, but the custom questionnaire has not been verified. See [telephony status](docs/twilio-trial.md).
 
 ## Run locally
 

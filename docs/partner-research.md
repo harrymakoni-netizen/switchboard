@@ -62,3 +62,12 @@ PARTNER_RESEARCH_MODE=live
 This is a fixed Harare plumbing directory, not a location-agnostic search. Gemini evaluates the retrieved leads against the repair brief; the page does not filter itself to the customer's street or suburb. Availability, suitability, service coverage and prices require confirmation. Keep real directory leads separate from simulated quote providers. Other trades or cities need a suitable directory source before claiming coverage.
 
 Keep both existing provider keys and demo/sandbox flags. Deploy the latest worker after changing these settings. Health reports `kernelKeyConfigured` and `directoryConfigured` separately to distinguish a missing key from a missing source without revealing either value. Once the worker reports live research, enable the same mode on Vercel and verify a new job end to end.
+
+
+## Hosted acceptance — 6 November 2026
+
+Worker revision 6701f8a reports live research with both keys and the fixed directory configured. Vercel production also has live research enabled. On job 966feebf-c88f-4756-b89e-8499ed4df4d8, hosted Gemini planning and the simulated $95/$110 quote extractions succeeded. Channel3 returned live offers. Kernel directory research failed twice; its direct browser retrieval test had succeeded. No payment was initiated during these checks.
+
+Research failures now persist only the stage (configuration/browser/extraction/lookup), a bounded error-class name and optional numeric HTTP status in the owning job snapshot. SDK messages, request/response bodies, prompts and credentials are excluded. This allows diagnosis without exposing secrets or asking for raw logs. The same update trims pasted Kernel keys/directory URLs and translates “geyser” into “water heater” for US-catalogue searches, excluding results whose title/description has no water-heater/immersion evidence. This is a relevance filter, not a compatibility guarantee.
+
+Hosted Kernel acceptance remains open until the diagnostic update is deployed and the failure is resolved. The existing PayPal approvals and ledger are unchanged.

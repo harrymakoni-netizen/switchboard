@@ -13,7 +13,27 @@ const pageEvidenceSchema = z.object({
   text: z.string().max(40000),
   links: z.array(z.string()).max(200),
 });
+export class DirectoryResearchError extends Error {
+  constructor(
+    readonly stage: "configuration" | "browser" | "extraction",
+    cause: unknown,
+  ) {
+    super("Directory research failed", { cause });
+    this.name = "DirectoryResearchError";
+  }
+}
+async function atStage<T>(
+  stage: DirectoryResearchError["stage"],
+  run: () => Promise<T> | T,
+): Promise<T> {
+  try {
+    return await run();
+  } catch (error) {
+    throw new DirectoryResearchError(stage, error);
+  }
+}
 export function directoryUrl(template: string, brief: JobBrief) {
+  template = template.trim();
   const query = template.includes("{query}");
   const location = template.includes("{location}");
   if (query !== location || /\{(?!query\}|location\})[^}]*\}/.test(template))
@@ -35,7 +55,13 @@ export interface DirectoryBrowser {
   ): Promise<{ sessionId: string; page: z.infer<typeof pageEvidenceSchema> }>;
 }
 export class KernelDirectory implements DirectoryBrowser {
-  constructor(private client = new Kernel({ maxRetries: 0, timeout: 45000 })) {}
+  constructor(
+    private client = new Kernel({
+      apiKey: process.env.KERNEL_API_KEY?.trim(),
+      maxRetries: 0,
+      timeout: 45000,
+    }),
+  ) {}
   async read(url: string) {
     publicUrl.parse(url);
     const session = await this.client.browsers.create({
@@ -71,8 +97,10 @@ export async function discoverBusinesses(
   browser: DirectoryBrowser,
   llm: LLM,
 ): Promise<DirectoryEvidence> {
-  const url = directoryUrl(template, brief);
-  const { sessionId, page } = await browser.read(url);
+  const url = await atStage("configuration", () =>
+    directoryUrl(template, brief),
+  );
+  const { sessionId, page } = await atStage("browser", () => browser.read(url));
   const evidence = pageEvidenceSchema.parse(page);
   if (new URL(evidence.url).hostname !== new URL(url).hostname)
     throw new Error("Directory redirected outside the configured host");
@@ -80,7 +108,9 @@ export async function discoverBusinesses(
     evidence.url,
     ...evidence.links.filter((link) => publicUrl.safeParse(link).success),
   ]);
-  const found = await findBusinesses(llm, brief, JSON.stringify(evidence));
+  const found = await atStage("extraction", () =>
+    findBusinesses(llm, brief, JSON.stringify(evidence)),
+  );
   const seen = new Set<string>();
   const businesses = found.flatMap((candidate) => {
     const sourceUrl = candidate.sourceUrl ?? evidence.url;

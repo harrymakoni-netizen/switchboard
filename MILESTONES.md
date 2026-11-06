@@ -23,3 +23,5 @@ The current release prioritizes a complete, clearly disclosed demo with Gemini a
 - M9: intentionally excluded.
 
 - Kernel/Channel3 follow-up: implemented optional durable directory and parts-price research, distinct from judge-mode quote providers. Live credentials and directory acceptance are deferred by user request; automated and browser verification are recorded in docs/partner-research.md.
+
+- 6 November hosted acceptance: worker/frontend research enabled; both keys and directory configured. Hosted Channel3 lookup and Gemini planning/quote extraction passed. Kernel hosted research failed twice; redacted stage/class/status diagnostics added for the next worker deployment. No payment was initiated in these acceptance checks. 222 automated tests pass.

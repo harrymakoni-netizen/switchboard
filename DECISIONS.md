@@ -56,3 +56,8 @@
 - Research snapshots reuse the owned-job event stream; no schema migration is required. Manual retries use the durable outbox with a one-minute request cooldown.
 
 - Live Kernel verification retrieved the fixed public Harare plumber directory. Directory configuration now accepts a fixed URL as well as a complete query/location template; this avoids pretending a static category page performs a dynamic search. Directory coverage is explicitly limited to this demo area/trade.
+
+## 2026-11-06 — Hosted research acceptance
+
+- Channel3 succeeded in the hosted job; Kernel failed twice despite successful direct browser retrieval. Persist only safe failure stage/class/status for the owning job to distinguish configuration, browser and extraction failures. No SDK messages or secrets are stored.
+- Translate the regional part term geyser to water heater for the configured US catalogue and exclude unrelated heating-element categories before calculating the advisory median.

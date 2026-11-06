@@ -8,7 +8,8 @@ import {
 } from "@switchboard/shared";
 import { KernelDirectory, directoryUrl, discoverBusinesses } from "./kernel";
 import { searchPartPrices } from "./channel3";
-import { researchJob } from "./research";
+import { researchJob, safeResearchFailure } from "./research";
+import { DirectoryResearchError } from "./kernel";
 const brief = briefSchema.parse({
   task: "Replace geyser element",
   category: "home_repair",
@@ -160,6 +161,34 @@ describe("Kernel discovery", () => {
   });
 });
 describe("Channel3 advisory prices", () => {
+  it("translates geyser searches and excludes unrelated oven or infrared parts", async () => {
+    const fetcher = vi.fn(
+      fetchProducts([
+        {
+          id: "heater",
+          title: "Water Heater Immersion Element",
+          offers: [offer(25)],
+        },
+        { id: "oven", title: "Oven Heating Element", offers: [offer(100)] },
+        {
+          id: "infrared",
+          title: "Quartz Infrared Replacement Heating Element",
+          offers: [offer(140)],
+        },
+      ]),
+    );
+    const result = await searchPartPrices(
+      "geyser heating element",
+      "test",
+      fetcher,
+    );
+    expect(JSON.parse(String(fetcher.mock.calls[0][1]?.body)).query).toBe(
+      "water heater heating element",
+    );
+    expect(result.offers.map((o) => o.productId)).toEqual(["heater"]);
+    expect(result.medianCents).toBe(2500);
+  });
+
   it("uses the real endpoint, private key header, USD locale and timeout", async () => {
     const fetcher = vi.fn(fetchProducts([]));
     await searchPartPrices("water heater element", "test-channel3", fetcher);
@@ -284,5 +313,51 @@ describe("Independent optional research", () => {
     "https://user:password@merchant.example.org/foo",
   ])("rejects unsafe source %s", (url) => {
     expect(publicUrl.safeParse(url).success).toBe(false);
+  });
+});
+
+describe("Redacted research diagnostics", () => {
+  it("keeps stage and numeric HTTP status without storing messages or provider data", () => {
+    const cause = Object.assign(
+      new Error("secret key and upstream request body"),
+      { name: "APIError", status: 401 },
+    );
+    const result = safeResearchFailure(
+      new DirectoryResearchError("browser", cause),
+    );
+    expect(result).toEqual({
+      stage: "browser",
+      errorClass: "APIError",
+      httpStatus: 401,
+    });
+    expect(JSON.stringify(result)).not.toContain("secret");
+  });
+  it("identifies model failures separately from browser failures", () => {
+    const cause = Object.assign(new Error("private prompt"), {
+      name: "APICallError",
+      statusCode: 429,
+    });
+    expect(
+      safeResearchFailure(
+        new DirectoryResearchError(
+          "extraction",
+          new Error("wrapper", { cause }),
+        ),
+      ),
+    ).toEqual({
+      stage: "extraction",
+      errorClass: "APICallError",
+      httpStatus: 429,
+    });
+  });
+  it("rejects unbounded error names and invalid status values", () => {
+    const error = Object.assign(new Error("private"), {
+      name: "unsafe-key-in-name!",
+      status: 999,
+    });
+    expect(safeResearchFailure(error)).toEqual({
+      stage: "lookup",
+      errorClass: "UnknownError",
+    });
   });
 });

@@ -53,6 +53,13 @@ const outcome = <T extends z.ZodTypeAny>(data: T) =>
     status: z.enum(["pending", "complete", "unavailable", "failed"]),
     mode: z.enum(["mock", "live"]),
     message: z.string().max(300).optional(),
+    failure: z
+      .object({
+        stage: z.enum(["configuration", "browser", "extraction", "lookup"]),
+        errorClass: z.string().regex(/^[A-Za-z][A-Za-z0-9_]{0,63}$/),
+        httpStatus: z.number().int().min(400).max(599).optional(),
+      })
+      .optional(),
     data: data.optional(),
   });
 export const partnerResearchSchema = z.object({
