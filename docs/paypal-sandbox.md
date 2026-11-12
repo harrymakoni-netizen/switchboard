@@ -1,10 +1,10 @@
-# PayPal sandbox integration — step 1
+# PayPal sandbox setup and verification
 
 Implemented: Orders v2 authorization checkout, Payments v2 capture/void/reauthorize, Payouts v1, verified webhooks, durable webhook processing, item-level settlement polling, and a resumable smoke runner. Provider requests are sandbox-only. All payment execution remains in `packages/engine`.
 
-**Verification status:** hosted sandbox order creation and real Gemini planning/extraction have passed. The user reported a completed sandbox capture and payout. The invoice-only PayPal Agent Toolkit receipt agent is implemented, with independent provider verification and persistent recovery; see [receipt verification limits](paypal-receipts.md). Real mode never fabricates an invoice.
+**Recorded verification — 6 November 2026:** a hosted run completed buyer checkout, a $95 authorization, a $95 capture, a successful $95 payout, and an independently verified PAID invoice receipt. Provider references are recorded in the [README verification section](../README.md#verification). This is dated sandbox evidence, not a guarantee of current provider availability. See [receipt boundaries and recovery](paypal-receipts.md) for invoice verification and email-delivery limits.
 
-## Configure later
+## Configure a sandbox deployment
 
 Create a REST application under a **sandbox business** account in https://developer.paypal.com/dashboard/applications/sandbox. Enable Payouts for that application. Create a sandbox personal buyer and sandbox personal recipient accounts. Keep their passwords out of this repository and out of chat.
 
@@ -42,7 +42,7 @@ Subscribe to:
 - `PAYMENT.PAYOUTS-ITEM.UNCLAIMED`
 - `PAYMENT.PAYOUTS-ITEM.FAILED`
 - `PAYMENT.PAYOUTS-ITEM.RETURNED`
-- `INVOICING.INVOICE.PAID` (receipt integration follows separately)
+- `INVOICING.INVOICE.PAID` (schedules independent invoice re-verification)
 
 Store the returned webhook ID as PAYPAL_WEBHOOK_ID. Localhost cannot receive PayPal webhooks. Use a suitable HTTPS test endpoint or deploy the worker; do not disable signature verification. The mock x-mock-signature mechanism is test-only and is never accepted by HttpPayPal.
 
