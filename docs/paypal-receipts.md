@@ -26,7 +26,11 @@ The worker needs its existing sandbox PayPal credentials and GEMINI_API_KEY. Kee
 
 ## Verification
 
-145 offline tests pass, including exact toolkit capability checks, the native SDK tool loop, capture/order verification, mismatches, injected tool arguments, duplicate/restart recovery, and persistent review status. All six mock browser scenarios pass. A live Gemini test completed all three tool calls against a simulated invoice executor with zero PayPal requests. Read-only sandbox preflight authenticated successfully, but invoice access returned HTTP 403 NOT_AUTHORIZED and the app token contained no invoicing scope. Enable Invoicing for the existing sandbox app, then restart the worker to obtain a fresh token and resume pending receipts. Provider invoice creation and recording remain unverified until that permission is enabled. An email attempt does not prove email delivery.
+**Recorded hosted verification — 6 November 2026:** the sandbox flow completed a $95 capture and successful payout, followed by invoice `INV2-UADH-JS7Y-GG2D-BQPJ` with `PAID` status and independent server verification. The matching capture and payout references are in the [README verification section](../README.md#verification). Receipt email delivery was not established by this result.
+
+An earlier preflight returned HTTP 403 `NOT_AUTHORIZED` for invoicing; that historical observation preceded the completed invoice run above. If a new deployment encounters that response, check Invoicing access for its sandbox REST app and restart the worker after permissions are updated.
+
+The [README](../README.md#verification) records the latest documented automated and browser-suite counts as of 6 November 2026. Tests cover toolkit capability restrictions, capture/order verification, mismatches, injected arguments, duplicate/restart recovery and review states. Automated provider tests use mocks; the hosted result is separate point-in-time evidence.
 
 The worker's public `/health` response reports its deployed Git revision and configured provider modes without revealing credentials. `mode=mock` still indicates simulated telephony; use `providers.paypal`, `providers.llm`, and `providers.receipts` to distinguish the enabled integrations.
 
