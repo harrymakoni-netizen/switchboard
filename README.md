@@ -8,13 +8,7 @@ Turn one home-repair request into comparable quotes, a booking, and a verified P
 
 Built for the **PayPal AI Hackathon**.
 
-## Submission guide
-
-- **Public source:** [harrymakoni-netizen/switchboard](https://github.com/harrymakoni-netizen/switchboard).
-- **Open-source license:** [MIT](LICENSE), an [OSI-approved license](https://opensource.org/license/mit).
-- **Setup instructions:** [Run locally without service keys](#run-locally-without-service-keys), with deployment guides linked below.
-- **PayPal, AI and sponsor usage:** [Integration details](#what-is-liveand-what-is-simulated), [architecture](#how-it-works), and [implementation references](#technology-and-implementation-references).
-- **Hands-on review:** [Try it as a judge](#try-it-as-a-judge), including authorization, completion approval, payout and receipt verification.
+**Start here:** [Judge walkthrough](#try-it-as-a-judge) · [Local setup](#run-locally-without-service-keys) · [Integrations](#integrations-and-demo-scope) · [Architecture](#how-it-works) · [Verification](#verification)
 
 ## The problem
 
@@ -31,7 +25,7 @@ Switchboard brings the request, quote details, supporting transcripts, research,
 - **Approve the booking.** PayPal sandbox checkout authorizes the selected quote amount without capturing it.
 - **Approve completion.** After reviewing the payout recipient, mark the work done to trigger capture, payout, and a verified invoice receipt. Cancellation before capture requests a void; reporting unfinished work leaves payment uncaptured and records an issue.
 
-## What is live—and what is simulated
+## Integrations and demo scope
 
 The hosted build connects to real provider APIs. **All PayPal transactions use sandbox funds.**
 
@@ -63,7 +57,7 @@ Captured during hosted verification on 6 November 2026. Service offers are simul
 
 ## Try it as a judge
 
-Use the same browser session throughout the flow.
+No Switchboard registration, installation or API keys are needed to try the hosted app. Complete the flow in the same browser session. For checkout, use the sandbox Personal buyer credentials supplied in the submission's testing instructions, or create your own sandbox buyer through [PayPal Developer](https://developer.paypal.com/dashboard/accounts).
 
 1. Open the [live app](https://switchboard-hjm-technologies.vercel.app) and enter:
 
@@ -73,13 +67,21 @@ Use the same browser session throughout the flow.
 
 2. Compare the simulated offers: **Tendai Plumbing — $95 with a 30-day guarantee**, and **QuickFix Geysers — $110 with a 90-day guarantee**. Avondale Handyman declines. Tendai’s cheaper appointment is later and is flagged when outside the requested window. Open **Transcript** to inspect each conversation.
 3. Scroll to **Research behind your request** to inspect Kernel directory sources and Channel3 parts offers. These are separate from the simulated quote providers.
-4. Choose **Book** on Tendai’s $95 offer, then approve the authorization in **PayPal sandbox**. Use a sandbox Personal buyer account—not a real PayPal login. Test accounts can be created through [PayPal Developer → Sandbox Accounts](https://developer.paypal.com/dashboard/accounts). Keep test access details in the submission’s private testing instructions.
+4. Choose **Book** on Tendai’s $95 offer, then approve the authorization in **PayPal sandbox**. Use a sandbox Personal buyer account—not a real PayPal login. Test accounts can be created through [PayPal Developer → Sandbox Accounts](https://developer.paypal.com/dashboard/accounts). Sandbox test access belongs in the submission’s testing instructions; developer/API credentials are never needed by judges. After returning to Switchboard, expect **$95.00 held**, with no capture or payout yet.
 5. Once the booking is confirmed, select **Show payout recipient** and review the destination. Choose **Fast-forward to completion** to skip the demo appointment wait; this does not approve payment.
-6. Select **Mark done · release payment**. Follow the capture and payout statuses, then open **View receipt** when the paid invoice has been verified. Pending and unclaimed payouts remain distinguishable from successful payouts.
+6. Select **Mark done · release payment**. Follow the capture and payout statuses, then open **View receipt** when the paid invoice has been verified. For a successful test, confirm **capture COMPLETED**, **payout SUCCEEDED**, and an independently verified **PAID receipt**. A pending or unclaimed payout is displayed separately and is not a successful payout.
 
 For alternate outcomes, start a separate job and choose **Cancel booking** before capture, or **Not done · keep funds held** at completion. External APIs may take time or hit rate limits; the app preserves saved job state and reports unavailable research rather than substituting invented results.
 
 Job access uses a signed anonymous browser cookie. Switching browsers or private windows creates a different session.
+
+### Troubleshooting the hosted demo
+
+- **Microphone unavailable:** type the request instead. Voice transcription requires microphone permission and a live Gemini connection.
+- **PayPal checkout:** sign in only on `sandbox.paypal.com` or `www.sandbox.paypal.com` with a sandbox Personal buyer. Switch accounts if a different buyer is already signed in, then let checkout return to the original Switchboard session.
+- **Payment still pending:** wait for the displayed provider status. Reconciliation polling begins after 60 seconds for pending capture/payout settlement. Avoid repeatedly submitting payment actions.
+- **Research unavailable:** the interface reports provider failures; directory and retail results are not prerequisites for choosing a simulated quote.
+- **Job missing in another browser:** return to the browser that created it. Job access depends on its signed session cookie.
 
 ## How it works
 
@@ -142,11 +144,22 @@ As of **6 November 2026**:
 - **235 automated tests** and **20 browser scenarios** passed, including payment guards, idempotency, session isolation, research, and voice-input recovery.
 - Strict TypeScript checks, ESLint, and the production build passed; desktop and 375px mobile renders were inspected.
 - Hosted checks verified Gemini planning and quote extraction, Kernel directory leads, Channel3 parts offers, and native browser recording through the real Gemini transcription endpoint.
-- A recorded PayPal sandbox run verified one $95 capture, one successful $95 payout, and an independently verified PAID invoice receipt.
 
-Automated payment tests use provider mocks. Hosted checks are point-in-time evidence and do not guarantee ongoing external API availability.
+### Recorded sandbox payment
 
-To repeat local checks, start and migrate a disposable development database first:
+A recorded hosted run on **6 November 2026** ended in job state `CLOSED` with one $95 capture, one successful $95 payout, and an independently verified paid invoice:
+
+| Record | Provider reference | Recorded result |
+| --- | --- | --- |
+| Capture | `015155227R373833T` | `COMPLETED` · $95.00 USD |
+| Payout | `YX7SR4837TKYW` | `SUCCEEDED` · $95.00 USD |
+| Invoice | `INV2-UADH-JS7Y-GG2D-BQPJ` | `PAID` · server verification passed |
+
+These references belong to job `46a88c11-2573-4396-9b0f-a4ce1572b765`. They document that run rather than guaranteeing future API availability. Sandbox payment completion does not prove a real repair occurred or that receipt email was delivered.
+
+Automated payment tests use provider mocks; the hosted results above are separate, dated checks.
+
+To repeat local checks, complete the local setup above and use a disposable development database. Stop `pnpm dev` before the browser suite so Playwright can start the production web server and worker:
 
 ```sh
 export DATABASE_URL=postgres://switchboard:switchboard@localhost:5433/switchboard
@@ -179,4 +192,4 @@ The web project uses `apps/web` as its Vercel root, includes monorepo sources ou
 
 ## License
 
-[MIT](LICENSE).
+[MIT](LICENSE) — an [OSI-approved open-source license](https://opensource.org/license/mit).
